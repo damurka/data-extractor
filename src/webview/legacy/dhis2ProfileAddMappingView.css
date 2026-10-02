@@ -1,0 +1,129 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* 1. MAIN LAYOUT SHELL */
+.dhis2-profile-view .editor-layout {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	height: 100vh; /* Lock to viewport height to enable inner scrolling */
+	background-color: var(--dhis2-bg-body);
+	overflow: hidden;
+}
+
+/* 2. HEADER
+ * Title/badge/ID and the Back/Cancel/Save actions moved to the shared Dhis2ProfileHeader
+ * component (see getHeaderModel() in dhis2ProfileAddMappingView.ts) for visual consistency with
+ * Dashboard/Downloads/Settings -- this view no longer renders its own header markup. */
+
+/* 3. WORKSPACE ROW (SIDEBAR + CANVAS) */
+.dhis2-profile-view .editor-workspace-row {
+	display: flex;
+	flex-direction: row;
+	flex: 1;
+	overflow: hidden; /* Contains children scrolling */
+}
+
+/* 4. CONFIG SIDEBAR (Aligned & Scrollable) */
+.dhis2-profile-view .config-sidebar {
+	width: 320px;
+	background: var(--dhis2-bg-surface);
+	border-right: 1px solid var(--dhis2-border-main);
+	flex-shrink: 0;
+	overflow-y: auto; /* Makes sidebar scrollable if content overflows */
+	display: flex;
+	flex-direction: column;
+}
+
+.dhis2-profile-view .sidebar-form { padding: 1.5rem; display: flex; flex-direction: column; gap: 2rem; }
+.dhis2-profile-view .sidebar-section { display: flex; flex-direction: column; gap: 1rem; }
+
+.dhis2-profile-view .sidebar-section-label { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.dhis2-profile-view .sidebar-section-label h3 { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; color: var(--vscode-symbolIcon-methodForeground, var(--dhis2-brand-secondary)); margin-bottom: 0.75rem; }
+
+/* Custom Dropdown Arrow — overlaid on top of a .d2-select element */
+.dhis2-profile-view .relative-select-container { position: relative; width: 100%; }
+.dhis2-profile-view .select-custom-arrow {
+	position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%);
+	pointer-events: none; color: var(--dhis2-text-muted); font-size: 14px !important;
+}
+
+/* 5. MAIN CONTENT CANVAS (Centered & Scrollable) */
+.dhis2-profile-view .editor-content-area {
+	flex: 1;
+	background-color: var(--vscode-editor-background, #f8f9fa);
+	overflow-y: auto; /* ENABLE SCROLLING FOR THE INDICATORS LIST */
+}
+
+.dhis2-profile-view .content-canvas-centered {
+	margin: 0 auto;
+	padding: 2.5rem 1.5rem;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+/* Toolbar Alignment: Labels left, Buttons right */
+.dhis2-profile-view .canvas-header-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding-bottom: 1.25rem;
+	border-bottom: 1px solid var(--dhis2-border-main);
+	margin-bottom: 0.5rem;
+}
+
+.dhis2-profile-view .canvas-title-text { font-size: 1.125rem; font-weight: 700; color: var(--vscode-foreground, var(--dhis2-text-main)); margin: 0; letter-spacing: -0.01em; }
+.dhis2-profile-view .canvas-subtitle-text { font-size: 0.75rem; color: var(--vscode-descriptionForeground, var(--dhis2-text-muted)); margin-top: 0.25rem; }
+
+.dhis2-profile-view .canvas-btn-group-inline { display: flex; flex-direction: row; gap: 0.75rem; }
+
+/* 6. INDICATOR CARD STYLING */
+.dhis2-profile-view .indicators-list-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+/* The "Add New" footer block */
+.dhis2-profile-view .btn-dashed-add {
+	width: 100%; border: 2px dashed var(--vscode-input-border, #cbd5e1); border-radius: 12px;
+	padding: 2rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+	background-color: var(--vscode-editorWidget-background, rgba(248, 249, 250, 0.5)); color: var(--vscode-descriptionForeground, #94a3b8); transition: all 0.2s;
+	cursor: pointer;
+}
+.dhis2-profile-view .btn-dashed-add:hover { border-color: var(--dhis2-brand-secondary); color: var(--dhis2-brand-secondary); background: var(--vscode-editorWidget-background, white); }
+
+.dhis2-profile-view .btn-dashed-circle {
+	padding: 0.6rem; background: var(--vscode-editor-background, white); border: 1px solid var(--vscode-input-border, #cbd5e1); border-radius: 50%;
+	display: flex; align-items: center; justify-content: center;
+}
+
+/* 7. TAGS & CHIPS UI */
+.dhis2-profile-view .sidebar-tags-box {
+	border: 1px solid var(--dhis2-border-main); border-radius: 4px; padding: 0.4rem;
+	display: flex; flex-wrap: wrap; gap: 0.4rem; min-height: 42px; background: var(--vscode-input-background, white);
+}
+.dhis2-profile-view .tag-chip-pill {
+	background: var(--vscode-list-inactiveSelectionBackground, #f1f5f9); border: 1px solid var(--dhis2-border-main);
+	font-size: 0.75rem; padding: 0.125rem 0.4rem; border-radius: 4px;
+	display: flex; align-items: center; gap: 0.3rem; color: var(--vscode-descriptionForeground, #6b7280);
+}
+.dhis2-profile-view .tag-inner-input { border: none; outline: none; font-size: 0.75rem; flex: 1; min-width: 40px; background-color: transparent; color: var(--vscode-foreground, #333333); }
+
+/* Search results dropdown, type badges, "from indicator" badge — see dhis2Components.css */
+
+
+/* btn-cancel-plain — see dhis2Components.css */
+
+/* Badge state variants */
+.dhis2-profile-view .amv-badge-editing {
+	background-color: #fef3c7;
+	color: #b45309;
+}
+
+.dhis2-profile-view .amv-badge-draft {
+	background-color: #ffedd5;
+	color: #c2410c;
+}
+
+/* .search-result-item.no-select — see dhis2Components.css */

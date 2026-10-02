@@ -27,7 +27,9 @@ const builds = [
 		format: 'iife',
 		target: 'chrome130',
 		jsx: 'automatic',
-		loader: { '.css': 'css' },
+		// the codicons font and the logo, emitted next to webview.css and referenced from it
+		loader: { '.css': 'css', '.ttf': 'file', '.svg': 'file', '.png': 'file' },
+		assetNames: '[name]-[hash]',
 	},
 ];
 

@@ -1,0 +1,27 @@
+/* Data Extractor: the extractor's own colours (DataSuite's dhis2.* theme colours), so its look does not depend on
+   DataSuite registering them. VS Code gives a webview its theme's colours as --vscode-* variables; these are used when
+   it gives none. */
+
+body {
+	--vscode-dhis2-brandRed: var(--de-brand-red, #9b5758);
+	--vscode-dhis2-brandRedHover: var(--de-brand-red-hover, #8e4648);
+	--vscode-dhis2-brandGold: var(--de-brand-gold, #cfaa50);
+	--vscode-dhis2-secondaryRed: var(--de-secondary-red, #DB4437);
+}
+
+body.vscode-dark,
+body.vscode-high-contrast {
+	--de-brand-red: #c47a7b;
+	--de-brand-red-hover: #b06869;
+	--de-secondary-red: #e05545;
+}
+
+html, body, #root {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	overflow: hidden;
+}

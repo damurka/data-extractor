@@ -1,0 +1,149 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.dhis2-profile-view .app-sidebar {
+	width: var(--dhis2-sidebar-width);
+	background-color: var(--dhis2-bg-surface);
+	border-right: 1px solid var(--dhis2-border-main);
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	height: 100%;
+	box-shadow: none;
+	z-index: 5;
+	overflow: hidden;
+	position: relative;
+}
+
+.dhis2-profile-view .sidebar-header {
+	padding: 1.5rem;
+	border-bottom: 1px solid var(--dhis2-border-main);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.dhis2-profile-view .dhis2-login-logo-container {
+	display: flex;
+	justify-content: center;
+}
+
+.dhis2-profile-view .dhis2-suite-logo {
+	width: 48px;
+	height: 48px;
+	/* Ensure this path points to your code-icon.svg just like login.css did */
+	background-image: url("./logo.svg");
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+/* Formats "Countdown" */
+.dhis2-profile-view .app-title {
+	font-size: 1rem;
+	font-weight: 700;
+	text-align: center;
+	line-height: 1.2;
+	letter-spacing: -0.02em;
+}
+
+/* Formats "to 2030" */
+.dhis2-profile-view .app-title span {
+	color: var(--dhis2-brand-secondary);
+}
+
+/* Formats "DHIS2 Data Extractor" */
+.dhis2-profile-view .app-brand {
+	font-size: 1rem;
+	color: var(--dhis2-text-muted);
+	font-weight: 700;
+	font-style: italic;
+	margin-top: 0.25rem;
+	text-align: center;
+}
+
+.dhis2-profile-view .app-version {
+	margin-top: 0.5rem;
+	font-family: monospace;
+	color: var(--dhis2-text-muted);
+	text-align: center;
+	font-size: 0.7rem;
+}
+
+.dhis2-profile-view .sidebar-nav {
+	flex: 1;
+	overflow-y: auto;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.dhis2-profile-view .nav-link {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	border-radius: 0.5rem;
+	color: var(--dhis2-text-main);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	border: 1px solid transparent;
+	transition: all 0.2s;
+	cursor: pointer;
+}
+
+.dhis2-profile-view .nav-link:hover {
+	background-color: var(--dhis2-bg-item-hover);
+	color: var(--dhis2-text-main);
+	border-color: var(--dhis2-border-main);
+}
+
+/* Matches the reference mockup's neutral dark selection pill (not a brand-colored fill) --
+ * reuses the same list-selection pairing already established elsewhere in this codebase
+ * (table.css's active row), rather than a one-off nav-specific color. */
+.dhis2-profile-view .nav-link.active {
+	background-color: var(--dhis2-bg-item-active);
+	color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
+.dhis2-profile-view .nav-link.active .codicon { color: var(--vscode-list-activeSelectionForeground, #ffffff); }
+
+.dhis2-profile-view .sidebar-footer {
+	padding: 1.5rem;
+	border-top: 1px solid var(--dhis2-border-main);
+	background-color: var(--dhis2-bg-subtle);
+}
+
+.dhis2-profile-view .sidebar-footer .nav-link {
+	margin-bottom: 0.5rem;
+}
+
+.dhis2-profile-view .btn-disconnect {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	padding: 0.625rem;
+	border-radius: 0.5rem;
+	background-color: var(--dhis2-brand-error);
+	color: var(--dhis2-text-on-brand);
+	font-weight: 600;
+	font-size: 0.875rem;
+	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+	transition: all 0.2s;
+	border: 1px solid transparent;
+}
+
+.dhis2-profile-view .btn-disconnect:hover {
+	background-color: var(--dhis2-brand-secondary-hover, #8e4648);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.dhis2-profile-view .btn-disconnect .codicon {
+	font-size: 16px !important;
+	color: var(--dhis2-text-on-brand);
+}

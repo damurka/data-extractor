@@ -1,217 +1,69 @@
-/* Data Extractor: the webview's styles, in VS Code's theme colours and the extractor's own (red, gold) */
+/* Data Extractor: the built-in extractor's stylesheets (legacy/, copied from DataSuite's contrib/dhis2/browser/media)
+   with the codicons they use, and the few rules for what the extension adds. */
 
-:root {
-	--de-red: #9b5758;
-	--de-red-hover: #8e4648;
-	--de-gold: #cfaa50;
-	--de-danger: #DB4437;
-	--de-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
-	--de-muted: var(--vscode-descriptionForeground);
-	--de-surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-}
+@import '@vscode/codicons/dist/codicon.css';
+@import './legacy/theme.css';
+@import './legacy/dhis2ProfileLayout.css';
+@import './legacy/dhis2Components.css';
+@import './legacy/table.css';
+@import './legacy/dhis2ProfileSidebar.css';
+@import './legacy/dhis2StatCard.css';
+@import './legacy/dhis2ActionCard.css';
+@import './legacy/dhis2DashboardView.css';
+@import './legacy/dhis2ProfileMappingsView.css';
+@import './legacy/dhis2ProfileAddMappingView.css';
+@import './legacy/dhis2IndicatorCard.css';
+@import './legacy/dhis2ProfileDownloadsView.css';
+@import './legacy/dhis2ProfileSettingsView.css';
+@import './legacy/login.css';
 
-body.vscode-dark, body.vscode-high-contrast {
-	--de-red: #c47a7b;
-	--de-red-hover: #b06869;
-}
-
-body {
-	font-family: var(--vscode-font-family);
-	font-size: var(--vscode-font-size);
-	color: var(--vscode-foreground);
-	background: var(--vscode-editor-background);
-	padding: 0;
-	margin: 0;
-}
-
-h2 { font-size: 1.35em; font-weight: 600; margin: 0; }
-h3 { font-size: 1.05em; font-weight: 600; margin: 20px 0 8px; }
-.muted { color: var(--de-muted); }
-.small { font-size: 0.9em; }
-.strong { font-weight: 600; }
-.code { font-family: var(--vscode-editor-font-family); }
-
-/* ---- layout */
-
-.app { display: flex; min-height: 100vh; }
-
-.sidebar {
-	width: 240px;
-	flex-shrink: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	padding: 16px 10px;
-	border-right: 1px solid var(--de-border);
-	background: var(--vscode-sideBar-background);
-}
-
-.brand { padding: 0 8px 12px; border-bottom: 3px solid var(--de-red); margin-bottom: 10px; }
-.brand-title { font-weight: 700; color: var(--de-red); }
-.brand-sub { color: var(--de-muted); }
-.connection { margin: 0 4px 10px; }
-.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
-
-button.nav {
-	text-align: left;
-	background: none;
-	color: var(--vscode-foreground);
-	border: none;
-	border-left: 3px solid transparent;
-	padding: 6px 10px;
-}
-button.nav:hover:not(:disabled) { background: var(--vscode-list-hoverBackground); }
-button.nav.on { border-left-color: var(--de-red); background: var(--vscode-list-inactiveSelectionBackground); font-weight: 600; }
-
-.content { flex: 1; min-width: 0; max-width: 1100px; padding: 18px 28px 40px; }
-
-@media (max-width: 720px) {
-	.app { flex-direction: column; }
-	.sidebar { width: auto; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--de-border); }
-	.sidebar-foot { margin-top: 0; flex-direction: row; }
-}
-
-.page-header {
+/* An error from an action, under the header */
+.de-error {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding-bottom: 12px;
-	margin-bottom: 14px;
-	border-bottom: 1px solid var(--de-border);
+	gap: 8px;
+	margin: 12px 32px 0;
+	padding: 8px 12px;
+	border-radius: 6px;
+	color: var(--vscode-errorForeground);
+	background: var(--vscode-inputValidation-errorBackground, rgba(219, 68, 55, 0.12));
+	border: 1px solid var(--vscode-inputValidation-errorBorder, var(--dhis2-brand-error));
 }
-.page-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.page-title .meta { color: var(--de-muted); width: 100%; }
-.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.empty { max-width: 560px; margin: 60px auto; text-align: center; }
-.empty p { color: var(--de-muted); line-height: 1.5; }
+.de-error span:nth-child(2) {
+	flex: 1;
+}
 
-/* ---- controls */
-
-button {
-	font: inherit;
-	color: var(--vscode-button-foreground);
-	background: var(--vscode-button-background);
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 2px;
-	padding: 4px 12px;
+.de-error button {
+	background: none;
+	border: none;
+	color: inherit;
 	cursor: pointer;
 }
-button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
-button.secondary:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
-button.plain { color: var(--vscode-textLink-foreground); background: none; border: none; padding: 2px 6px; }
-button.plain:hover:not(:disabled) { background: none; text-decoration: underline; }
-button.plain.danger { color: var(--de-danger); }
-button.back { font-size: 1.2em; }
 
-input, select, textarea {
-	font: inherit;
-	color: var(--vscode-input-foreground);
-	background: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, var(--de-border));
-	border-radius: 2px;
-	padding: 4px 6px;
+/* The connections screen sits in the main area, not the whole editor */
+.dhis2-profile-view .dhis2-connections-host {
+	flex: 1;
+	overflow: auto;
 }
-input:focus, select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 
-.fields { display: flex; flex-direction: column; gap: 12px; }
-.fields label, .editor-side label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
-.fields.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.fields.settings { max-width: 520px; }
-label.inline { flex-direction: row; align-items: center; gap: 6px; display: flex; }
-label.checkbox { display: flex; align-items: center; gap: 6px; font-weight: normal; padding: 2px 0; }
-
-.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-.toolbar input[type=search] { flex: 1; min-width: 180px; }
-.segmented { display: inline-flex; border: 1px solid var(--de-border); border-radius: 3px; overflow: hidden; }
-.segmented button { background: none; color: var(--vscode-foreground); border: none; border-radius: 0; }
-.segmented button.on { background: var(--de-red); color: #fff; }
-
-.error-line {
+/* The page: the connections screen or the profile view, filling the panel */
+.de-root {
 	display: flex;
-	justify-content: space-between;
-	gap: 8px;
-	color: var(--vscode-errorForeground);
-	background: var(--vscode-inputValidation-errorBackground);
-	border: 1px solid var(--vscode-inputValidation-errorBorder, var(--de-danger));
-	padding: 6px 10px;
-	margin-bottom: 10px;
-	border-radius: 2px;
+	width: 100%;
+	height: 100%;
 }
-.banner { display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 12px; border-left: 3px solid var(--de-gold); background: var(--de-surface); }
 
-.badge { font-size: 0.75em; font-weight: 700; padding: 1px 6px; border-radius: 3px; background: var(--de-gold); color: #222; margin-left: 6px; }
-.pill { font-size: 0.85em; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--de-border); }
-.pill.countdown { border-color: var(--de-red); color: var(--de-red); }
-.pill.custom { border-color: var(--de-gold); }
-.pill.ok { border-color: #3a9b5d; color: #3a9b5d; }
-.pill.failed { border-color: var(--de-danger); color: var(--de-danger); }
+.dhis2-profiles-footer .dhis2-profiles-manage {
+	background: none;
+	border: none;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	margin-right: 12px;
+}
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 12px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
-.chip button.plain { color: inherit; padding: 0 4px; }
-
-/* ---- cards, tables */
-
-.card { border: 1px solid var(--de-border); border-radius: 4px; padding: 12px 14px; margin-bottom: 10px; background: var(--de-surface); }
-.card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.card-head .actions { margin-left: auto; }
-.card.collapsed { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.card.collapsed:hover { border-color: var(--vscode-focusBorder); }
-.card.modal { border-color: var(--de-red); max-width: 640px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.dot.ok { background: #3a9b5d; }
-.dot.todo { background: var(--de-gold); }
-
-.stat-grid, .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.stat-card { border: 1px solid var(--de-border); border-top: 4px solid; border-radius: 4px; padding: 12px 14px; background: var(--de-surface); }
-.stat-card.red { border-top-color: var(--de-red); }
-.stat-card.gold { border-top-color: var(--de-gold); }
-.stat-card.teal { border-top-color: var(--vscode-button-background); }
-.stat-card.clickable { cursor: pointer; }
-.stat-label { color: var(--de-muted); }
-.stat-value { font-size: 1.8em; font-weight: 700; margin: 4px 0; }
-.stat-footer { color: var(--de-muted); font-size: 0.9em; }
-button.action-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 14px; color: var(--vscode-foreground); background: var(--de-surface); border: 1px solid var(--de-border); border-radius: 4px; }
-button.action-card:hover { border-color: var(--de-red); background: var(--de-surface); }
-
-.table { width: 100%; border-collapse: collapse; }
-.table th { text-align: left; color: var(--de-muted); font-weight: 600; border-bottom: 1px solid var(--de-border); padding: 6px 8px; }
-.table td { border-bottom: 1px solid var(--de-border); padding: 6px 8px; vertical-align: top; }
-.table.compact td, .table.compact th { padding: 4px 6px; }
-.table tr.selected td { background: var(--vscode-list-inactiveSelectionBackground); }
-.table tbody tr:hover td { background: var(--vscode-list-hoverBackground); }
-.row-actions { white-space: nowrap; text-align: right; }
-.count-bar { display: flex; align-items: center; gap: 8px; }
-.count-bar .bar { height: 5px; border-radius: 3px; min-width: 4px; }
-.bar.red { background: var(--de-danger); }
-.bar.gold { background: var(--de-gold); }
-.bar.green { background: #3a9b5d; }
-.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 8px; }
-
-.progress { height: 6px; border-radius: 3px; background: var(--de-border); overflow: hidden; }
-.progress-fill { height: 100%; background: var(--de-red); transition: width 0.3s; }
-
-/* ---- the mapping editor */
-
-.editor { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; }
-@media (max-width: 860px) { .editor { grid-template-columns: 1fr; } }
-.editor-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; }
-.canvas-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.canvas-head h3 { margin: 0; }
-button.add-block { width: 100%; padding: 14px; color: var(--de-muted); background: none; border: 1px dashed var(--de-border); }
-button.add-block:hover { color: var(--vscode-foreground); border-color: var(--de-red); background: none; }
-
-.source-picker { position: relative; margin: 10px 0; }
-.source-picker input { width: 100%; box-sizing: border-box; }
-.dropdown { position: absolute; z-index: 10; left: 0; right: 0; max-height: 320px; overflow-y: auto; background: var(--vscode-editorSuggestWidget-background, var(--de-surface)); border: 1px solid var(--vscode-editorSuggestWidget-border, var(--de-border)); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-label .dropdown { position: relative; }
-.dropdown-group { padding: 4px 10px; font-weight: 700; color: var(--de-muted); background: var(--de-surface); }
-button.dropdown-item { display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; color: var(--vscode-foreground); background: none; border: none; padding: 5px 10px; }
-button.dropdown-item:hover { background: var(--vscode-list-hoverBackground); }
-
-.coc-panel { margin-top: 10px; padding: 10px; border-left: 3px solid var(--de-gold); background: var(--vscode-editor-background); }
-.coc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.dhis2-profiles-empty {
+	padding: 16px 24px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}

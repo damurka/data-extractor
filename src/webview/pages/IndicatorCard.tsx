@@ -1,85 +1,267 @@
 /*---------------------------------------------------------------------------------------------
- *  Data Extractor: one indicator of a mapping -- its result name and analysis code, the DHIS2 sources it sums, and
- *  which disaggregations (category option combos) of each it includes.
+ *  Data Extractor: one indicator of a mapping (dhis2IndicatorCard.ts) -- its result name and analysis code, the DHIS2
+ *  sources it sums, and which disaggregations (category option combos) of each it includes.
  *--------------------------------------------------------------------------------------------*/
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { IAddMappingDraft, IIndicatorDraft, IIndicatorSourceDraft, SourceHit, SourceSearchResult } from '../../shared/api';
-import { availableCountdownIndicators, isComplete, sourcesFor, withCocs } from '../../shared/mapping';
+import { useEffect, useRef, useState } from 'react';
 import { findIndicatorCategoryMismatch } from '../../core/countdown';
-import { ErrorLine } from '../components';
+import { IAddMappingDraft, IIndicatorDraft, IIndicatorSourceDraft, SourceHit } from '../../shared/api';
+import { availableCountdownIndicators, isComplete, sourcesFor, withCocs } from '../../shared/mapping';
+import { Icon } from '../components';
 import { host, useAction } from '../hooks';
 
 interface Props {
 	readonly connectionId: string;
 	readonly draft: IAddMappingDraft;
 	readonly indicator: IIndicatorDraft;
-	readonly expanded: boolean;
-	onExpand(): void;
 	onChange(indicator: IIndicatorDraft): void;
+	onToggle(): void;
 	onClone(): void;
 	onDelete(): void;
+	onError(error: string): void;
 }
 
-export function IndicatorCard({ connectionId, draft, indicator, expanded, onExpand, onChange, onClone, onDelete }: Props) {
+type Disaggregation = 'none' | 'noData' | 'default' | 'real';
+
+function disaggregationOf(source: IIndicatorSourceDraft): Disaggregation {
+	return source.type === 'DataSet' || source.type === 'Dataset' ? 'none'
+		: !source.cocs?.length ? 'noData'
+			: source.categoryComboIsDefault ? 'default'
+				: 'real';
+}
+
+function dotFor(name: string): string {
+	const lower = name.toLowerCase();
+	return lower.includes('female') ? 'bg-pink-400' : lower.includes('male') ? 'bg-blue-400' : 'bg-brand-teal';
+}
+
+export function IndicatorCard({ connectionId, draft, indicator, onChange, onToggle, onClone, onDelete, onError }: Props) {
 	const complete = isComplete(indicator);
+	const countdown = indicator.kind === 'countdown';
+	const set = (patch: Partial<IIndicatorDraft>) => onChange({ ...indicator, ...patch });
+	const sources = indicator.sources;
+	const active = sources.find(s => s.active) ?? sources[0];
+	const [showAll, setShowAll] = useState(false);
 	const mismatch = findIndicatorCategoryMismatch(indicator);
-	if (!expanded) {
-		return (
-			<div className="card indicator collapsed" onClick={onExpand} role="button">
-				<span className={`dot ${complete ? 'ok' : 'todo'}`} title={complete ? 'Complete' : 'Incomplete'} />
-				<span className="strong">{indicator.internalName || 'Untitled Indicator'}</span>
-				<span className="muted code">{indicator.exportCode}</span>
-				<span className="muted">{indicator.sources.length} source{indicator.sources.length === 1 ? '' : 's'}</span>
-			</div>
-		);
+
+	const activate = (source: IIndicatorSourceDraft) => {
+		const wasActive = source === active;
+		setShowAll(false);
+		set({ sources: sources.map(s => ({ ...s, active: !wasActive && s === source })) });
+	};
+	const updateSource = (source: IIndicatorSourceDraft, next: IIndicatorSourceDraft) => set({ sources: sources.map(s => s === source ? next : s) });
+
+	// One chip per source, sources from the same indicator sharing one
+	const chips: { key: string; title: string; sub: string; remove: () => void }[] = [];
+	const seen = new Set<string>();
+	for (const s of sources) {
+		if (s.parentIndicatorId && s.parentIndicatorName) {
+			if (seen.has(s.parentIndicatorId)) {
+				continue;
+			}
+			seen.add(s.parentIndicatorId);
+			chips.push({ key: `i:${s.parentIndicatorId}`, title: s.parentIndicatorName, sub: `Indicator: ${s.parentIndicatorId}`, remove: () => set({ sources: sources.filter(x => x.parentIndicatorId !== s.parentIndicatorId) }) });
+		} else {
+			chips.push({ key: `s:${s.id}`, title: s.sourceElement, sub: `${s.type || 'Data Element'}: ${s.id}`, remove: () => set({ sources: sources.filter(x => x !== s) }) });
+		}
 	}
 
-	const set = (patch: Partial<IIndicatorDraft>) => onChange({ ...indicator, ...patch });
-	const countdown = indicator.kind === 'countdown';
-	const choices = availableCountdownIndicators(draft, indicator);
-
 	return (
-		<div className="card indicator expanded">
-			<div className="card-head">
-				<span className={`dot ${complete ? 'ok' : 'todo'}`} />
-				<span className="strong">{indicator.internalName || 'Untitled Indicator'}</span>
-				<div className="actions">
-					<button className="plain" onClick={onClone}>Copy</button>
-					<button className="plain danger" onClick={onDelete}>Delete</button>
+		<div className="indicator-card-modern">
+			<div className="ic-header" onClick={onToggle}>
+				<div className="ic-header-left">
+					<Icon name="gripper" className="ic-drag-icon" />
+					<div className="ic-title-wrap">
+						<Icon name={indicator.expanded ? 'chevron-down' : 'chevron-right'} className="ic-expand-icon" />
+						<span className="ic-title">{indicator.internalName || 'Untitled Indicator'}</span>
+						{!indicator.expanded && <>
+							<span className={`ic-status-dot ${complete ? 'ic-status-complete' : 'ic-status-incomplete'}`} title={complete ? 'Complete' : 'Missing required fields'} />
+							{indicator.exportCode && <span className="ic-summary-code">{indicator.exportCode}</span>}
+						</>}
+					</div>
+				</div>
+				<div className="ic-header-actions">
+					<button type="button" className="d2-btn--icon" title="Clone" onClick={e => { e.stopPropagation(); onClone(); }}><Icon name="copy" /></button>
+					<button type="button" className="d2-btn--icon" title="Delete" onClick={e => { e.stopPropagation(); onDelete(); }}><Icon name="trash" /></button>
 				</div>
 			</div>
-			<div className="fields two">
-				<label>Result Name
-					{countdown ? (
-						<select value={indicator.exportCode} onChange={e => {
-							const choice = choices.find(c => c.id === e.target.value);
-							set({ exportCode: choice?.id ?? '', internalName: choice?.title ?? '' });
-						}}>
-							<option value="">Choose a Countdown indicator...</option>
-							{Object.entries(groupBy(choices, c => c.category)).map(([category, list]) => (
-								<optgroup key={category} label={category}>{list.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</optgroup>
-							))}
-						</select>
-					) : <input value={indicator.internalName} placeholder="e.g. ANC first visits" onChange={e => set({ internalName: e.target.value })} />}
-				</label>
-				<label>Analysis Code <span className="badge small">SUM</span>
-					<input value={indicator.exportCode} readOnly={countdown} placeholder={countdown ? '' : 'e.g. anc1'} onChange={e => set({ exportCode: e.target.value })} />
-				</label>
-			</div>
-			{mismatch && <div className="error-line">{mismatch}</div>}
-			<SourcePicker connectionId={connectionId} onPick={sources => set({ sources: [...indicator.sources.map(s => ({ ...s, active: false })), ...sources] })} />
-			<Sources indicator={indicator} onChange={sources => set({ sources })} />
+
+			{indicator.expanded && (
+				<div className="ic-body">
+					<div className="ic-grid-2">
+						<div className="d2-form-group">
+							<label className="ic-label">Result Name</label>
+							<p className="ic-field-hint">The label this indicator gets in your output.</p>
+							{countdown ? (
+								<select className="d2-input d2-select" value={indicator.exportCode} onChange={e => {
+									const choice = availableCountdownIndicators(draft, indicator).find(c => c.id === e.target.value);
+									set({ exportCode: choice?.id ?? '', internalName: choice?.title ?? '' });
+								}}>
+									<option value="">Select mapping indicator...</option>
+									{availableCountdownIndicators(draft, indicator).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+								</select>
+							) : <input className="d2-input" type="text" value={indicator.internalName} onChange={e => set({ internalName: e.target.value })} />}
+						</div>
+						<div className="d2-form-group">
+							<div className="ic-label-wrap">
+								<label className="ic-label">Analysis Code</label>
+								<span className="ic-badge-sum" title="All sources below will be summed into this code">SUM</span>
+							</div>
+							<p className="ic-field-hint">The code DHIS2 uses to identify this value in analytics queries.</p>
+							<div className="ic-code-relative">
+								<span className="ic-code-prefix">CODE:</span>
+								<input className={`d2-input ic-input-code${countdown ? ' ic-input-readonly' : ''}`} type="text" value={indicator.exportCode} readOnly={countdown}
+									title={countdown ? 'Target Export Code is fixed for Countdown indicators' : undefined} onChange={e => set({ exportCode: e.target.value })} />
+								<Icon name="symbol-numeric" className="ic-code-suffix" />
+							</div>
+						</div>
+					</div>
+					{mismatch && <p className="ic-field-hint text-error">{mismatch}</p>}
+
+					<div className="ic-source-group">
+						<div className="ic-label-wrap ic-justify-between"><label className="ic-label">DHIS2 Data Mapping</label></div>
+						<p className="ic-field-hint">Which DHIS2 data elements, indicators, or datasets feed this indicator's number.</p>
+						<div className="ic-tags-container">
+							<div className="ic-tags-wrap">
+								{chips.map(chip => (
+									<div key={chip.key} className="ic-chip">
+										<div className="ic-chip-text"><span className="ic-chip-main">{chip.title}</span><span className="ic-chip-sub">{chip.sub}</span></div>
+										<button type="button" className="ic-chip-close" onClick={chip.remove}><Icon name="close" /></button>
+									</div>
+								))}
+							</div>
+							<SourceSearch connectionId={connectionId} onError={onError} onPick={added => set({ sources: [...sources.map(s => ({ ...s, active: false })), ...added] })} />
+						</div>
+					</div>
+
+					<div className="ic-resolved-container">
+						<div className="ic-resolved-card">
+							<div className="ic-resolved-header">
+								<div className="ic-resolved-title-wrap">
+									<span className="ic-resolved-title">Resolved Data Sources</span>
+									<span className="ic-resolved-subtitle">→ Summing to Target Code</span>
+								</div>
+								<span className="ic-badge-sources">{sources.length} Sources Aggregating</span>
+							</div>
+							<div className="ic-table-wrap">
+								<table className="ic-table">
+									<thead><tr>
+										<th className="ic-th ic-th-source">Source Element</th>
+										<th className="ic-th ic-th-type">Type</th>
+										<th className="ic-th ic-th-categories">Included Categories (Disaggregation)</th>
+									</tr></thead>
+									<tbody>
+										{sources.length === 0 && <tr><td className="ic-empty-cell" colSpan={3}>No sources added yet. Use the search box above to add Data Elements.</td></tr>}
+										{sources.map((s, i) => <SourceRow key={`${s.parentIndicatorId ?? ''}:${s.id}:${i}`} source={s} active={s === active} onActivate={() => activate(s)} />)}
+									</tbody>
+								</table>
+							</div>
+						</div>
+						{active && disaggregationOf(active) === 'real' && (
+							<DisaggregationPanel source={active} showAll={showAll} setShowAll={setShowAll} onChange={next => updateSource(active, next)} />
+						)}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
 
-/** Search the server's metadata for a source; picking one adds its source(s). */
-function SourcePicker({ connectionId, onPick }: { connectionId: string; onPick(sources: IIndicatorSourceDraft[]): void }) {
+function SourceRow({ source, active, onActivate }: { source: IIndicatorSourceDraft; active: boolean; onActivate(): void }) {
+	const state = disaggregationOf(source);
+	const real = state === 'real';
+	const cocs = source.cocs ?? [];
+	const selected = cocs.filter(c => c.checked).length;
+	return (
+		<tr className={`ic-tr${active ? ' ic-tr-active' : ''}`} onClick={onActivate}>
+			<td className="ic-td">
+				<div className="ic-name-wrap">
+					<span className="ic-name-main">{source.sourceElement}</span>
+					<div className="ic-name-sub-wrap">
+						<span className="ic-name-sub">{source.id}</span>
+						{source.origin && <span className={`ic-origin-badge ic-origin-${source.origin}`}>{source.origin === 'ai' ? 'AI' : 'Manual'}</span>}
+						{source.parentIndicatorId && <span className="ic-from-indicator-badge"><span className="ic-from-prefix">From Indicator: </span><span className="ic-from-id">{source.parentIndicatorId}</span></span>}
+					</div>
+				</div>
+			</td>
+			<td className="ic-td ic-td-top">{source.type || 'Data Element'}</td>
+			<td className="ic-td">
+				<div className={`ic-selector-card${active && real ? ' ic-selector-active' : ''}`} onClick={e => { e.stopPropagation(); onActivate(); }}>
+					<div className={`ic-selector-left${active && real ? ' ic-flex-wrap' : ''}`}>
+						{state === 'none' && <><span className="ic-dot ic-dot-muted" /><span className="ic-sel-main">N/A</span></>}
+						{state === 'noData' && <><span className="ic-dot ic-dot-muted" /><span className="ic-sel-main">No Category Options</span></>}
+						{state === 'default' && <><span className="ic-dot ic-dot-muted" /><span className="ic-sel-main">All Category Options</span><span className="ic-sel-sub">(Default)</span></>}
+						{real && active && <>
+							<span className="ic-dot bg-amber-500" />
+							<span className="ic-sel-main-amber ic-dynamic-main-text">{source.includedCategoriesText}</span>
+							<span className="ic-sel-pill ic-dynamic-pill-text">{selected === cocs.length ? 'All Selected' : selected ? `${selected} Selected` : 'None Selected'}</span>
+						</>}
+						{real && !active && (selected === cocs.length ? <><span className="ic-dot bg-brand-teal" /><span className="ic-sel-main">All Category Options</span></>
+							: selected === 0 ? <><span className="ic-dot ic-dot-muted" /><span className="ic-sel-main">No Category Options</span></>
+								: <><span className="ic-dot bg-amber-500" /><span className="ic-sel-main-amber">Custom Selection</span><span className="ic-sel-sub">({selected}/{cocs.length} Selected)</span></>)}
+					</div>
+					{real && <Icon name={active ? 'chevron-up' : 'settings-gear'} className={active ? 'ic-sel-icon-active' : 'ic-sel-icon'} />}
+				</div>
+			</td>
+		</tr>
+	);
+}
+
+function DisaggregationPanel({ source, showAll, setShowAll, onChange }: { source: IIndicatorSourceDraft; showAll: boolean; setShowAll(v: boolean): void; onChange(next: IIndicatorSourceDraft): void }) {
+	const cocs = source.cocs ?? [];
+	const visible = showAll ? cocs : cocs.slice(0, 4);
+	const hidden = cocs.length - 4;
+	return (
+		<div className="ic-disagg-panel">
+			<div className="ic-disagg-border" />
+			<div className="ic-disagg-header">
+				<div className="ic-disagg-h-left">
+					<span className="ic-disagg-title">Disaggregation: {source.sourceElement}</span>
+					<span className="ic-disagg-badge">{source.id}</span>
+				</div>
+				<button type="button" className="ic-btn-automap" onClick={() => onChange(withCocs(source, cocs.map(c => ({ ...c, checked: true }))))}><Icon name="refresh" /> Auto-map all</button>
+			</div>
+			<table className="ic-disagg-table">
+				<thead><tr>
+					<th className="ic-disagg-th ic-disagg-th-coc">Category Option Combo</th>
+					<th className="ic-disagg-th ic-disagg-th-id">COC ID<span className="ic-disagg-th-sub">(Appends to Target Export)</span></th>
+					<th className="ic-disagg-th ic-text-center ic-disagg-th-include">Include</th>
+				</tr></thead>
+				<tbody>
+					{visible.map(coc => {
+						const locked = coc.name.trim().toLowerCase() === 'default';
+						return (
+							<tr key={coc.uid} className={`ic-disagg-tr${locked ? ' ic-coc-locked' : ''}`}>
+								<td className="ic-disagg-td ic-flex-row">
+									<span className={`ic-dot ${dotFor(coc.name)}`} />{coc.name}
+									{locked && <Icon name="lock" className="ic-coc-lock-icon" />}
+								</td>
+								<td className="ic-disagg-td"><span className="ic-mono">{coc.uid}</span></td>
+								<td className="ic-disagg-td ic-text-center">
+									<input className="ic-checkbox" type="checkbox" checked={locked || coc.checked} disabled={locked}
+										onChange={e => onChange(withCocs(source, cocs.map(c => c.uid === coc.uid ? { ...c, checked: e.target.checked } : c)))} />
+								</td>
+							</tr>
+						);
+					})}
+				</tbody>
+			</table>
+			{hidden > 0 && (
+				<div className="ic-disagg-footer">
+					<button type="button" className="ic-disagg-more" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show less combinations' : `Show ${hidden} more combinations`}</button>
+				</div>
+			)}
+		</div>
+	);
+}
+
+/** The source search box and its results (search-results-list), inside the card's tags container. */
+function SourceSearch({ connectionId, onPick, onError }: { connectionId: string; onPick(sources: IIndicatorSourceDraft[]): void; onError(error: string): void }) {
 	const [query, setQuery] = useState('');
-	const [results, setResults] = useState<SourceSearchResult>();
-	const [run, error, busy, dismiss] = useAction();
+	const [results, setResults] = useState<SourceHit[]>();
+	const [run, error] = useAction();
 	const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useEffect(() => { if (error) { onError(error); } }, [error, onError]);
 
 	useEffect(() => {
 		clearTimeout(timer.current);
@@ -87,7 +269,10 @@ function SourcePicker({ connectionId, onPick }: { connectionId: string; onPick(s
 			setResults(undefined);
 			return;
 		}
-		timer.current = setTimeout(() => void run(async () => setResults(await host.searchSources(connectionId, query.trim()))), 300);
+		timer.current = setTimeout(() => void run(async () => {
+			const r = await host.searchSources(connectionId, query.trim());
+			setResults([...r.dataElements, ...r.indicators, ...r.dataSets]);
+		}), 300);
 		return () => clearTimeout(timer.current);
 	}, [query, connectionId, run]);
 
@@ -99,106 +284,25 @@ function SourcePicker({ connectionId, onPick }: { connectionId: string; onPick(s
 		setResults(undefined);
 	});
 
-	const groups: [string, SourceHit[]][] = results ? [['Data Elements', results.dataElements], ['Indicators', results.indicators], ['Datasets', results.dataSets]] : [];
 	return (
-		<div className="source-picker">
-			<input type="search" placeholder="Search data elements, indicators and datasets (2 letters or more)" value={query} onChange={e => setQuery(e.target.value)} />
-			{busy && <span className="muted small">Searching...</span>}
-			<ErrorLine error={error} onDismiss={dismiss} />
+		<div className="d2-search">
+			<Icon name="search" className="d2-search-icon" />
+			<input className="d2-search-input" type="text" placeholder="Search and add Data Elements, Indicators or DataSets..." value={query} onChange={e => setQuery(e.target.value)} />
 			{results && (
-				<div className="dropdown">
-					{groups.every(([, list]) => !list.length) && <div className="muted">Nothing matches "{query}". Has the metadata been synced?</div>}
-					{groups.filter(([, list]) => list.length).map(([label, list]) => (
-						<div key={label}>
-							<div className="dropdown-group">{label}</div>
-							{list.map(hit => (
-								<button key={`${hit.type}:${hit.uid}`} className="dropdown-item" onClick={() => pick(hit)}>
-									<span>{hit.name}</span>
-									<span className="muted small">{hit.type === 'Indicator' ? `${hit.elementCount ?? 0} Elements` : hit.code ?? hit.uid}</span>
-								</button>
-							))}
+				<div className="search-results-list">
+					{results.length === 0 && <div className="search-result-item no-select"><div className="res-top-row"><span className="res-name">No results found</span></div><div className="res-bottom-row" /></div>}
+					{results.map(hit => (
+						<div key={`${hit.type}:${hit.uid}`} className="search-result-item" onClick={() => pick(hit)}>
+							<div className="res-top-row"><span className="res-name">{hit.name}</span></div>
+							<div className="res-bottom-row">
+								<span className={`res-type-badge ${hit.type === 'Indicator' ? 'badge-indicator' : hit.type === 'DataSet' ? 'badge-dataset' : 'badge-de'}`}>{hit.type}</span>
+								<span className="res-id">{hit.uid}</span>
+								{hit.type === 'Indicator' && hit.elementCount !== undefined && <span className="res-count-badge">{hit.elementCount} Elements</span>}
+							</div>
 						</div>
 					))}
 				</div>
 			)}
 		</div>
 	);
-}
-
-/** The indicator's sources -- chips (one per parent indicator), the table, and the active source's disaggregations. */
-function Sources({ indicator, onChange }: { indicator: IIndicatorDraft; onChange(sources: IIndicatorSourceDraft[]): void }) {
-	const sources = indicator.sources;
-	const [showAll, setShowAll] = useState(false);
-	const chips = useMemo(() => {
-		const seen = new Map<string, { key: string; label: string; ids: string[] }>();
-		for (const s of sources) {
-			const key = s.parentIndicatorId ? `ind:${s.parentIndicatorId}` : `src:${s.id}`;
-			const chip = seen.get(key) ?? { key, label: s.parentIndicatorName ?? s.sourceElement, ids: [] };
-			chip.ids.push(s.id);
-			seen.set(key, chip);
-		}
-		return [...seen.values()];
-	}, [sources]);
-	const active = sources.find(s => s.active) ?? sources[0];
-
-	if (!sources.length) {
-		return <div className="muted">No DHIS2 source yet: search for one above.</div>;
-	}
-
-	const update = (source: IIndicatorSourceDraft) => onChange(sources.map(s => s.id === source.id && s.parentIndicatorId === source.parentIndicatorId ? source : s));
-	const real = active && active.type !== 'DataSet' && !!active.cocs?.length && !active.categoryComboIsDefault;
-	const cocs = active?.cocs ?? [];
-	const visible = showAll ? cocs : cocs.slice(0, 4);
-
-	return (
-		<div className="sources">
-			<div className="chips">
-				{chips.map(chip => (
-					<span key={chip.key} className="chip">{chip.label}
-						<button className="plain" title="Remove" onClick={() => onChange(sources.filter(s => !(chip.key.startsWith('ind:') ? s.parentIndicatorId === chip.key.slice(4) : s.id === chip.key.slice(4) && !s.parentIndicatorId)))}>&times;</button>
-					</span>
-				))}
-			</div>
-			<table className="table compact">
-				<thead><tr><th>Source</th><th>Type</th><th>Included Categories</th></tr></thead>
-				<tbody>
-					{sources.map(s => (
-						<tr key={`${s.parentIndicatorId ?? ''}:${s.id}`} className={s === active ? 'selected' : ''} onClick={() => onChange(sources.map(x => ({ ...x, active: x === s })))}>
-							<td>{s.sourceElement}{s.origin && <span className="badge small">{s.origin === 'ai' ? 'AI' : 'Manual'}</span>}{s.parentIndicatorName && <div className="muted small">From indicator: {s.parentIndicatorName}</div>}</td>
-							<td>{s.type}</td>
-							<td>{s.includedCategoriesText}</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
-			{active && real && (
-				<div className="coc-panel">
-					<div className="coc-head">
-						<span className="strong">Disaggregations of {active.sourceElement}</span>
-						<span className="muted">{cocs.filter(c => c.checked).length} Selected</span>
-						<button className="plain" onClick={() => update(withCocs(active, cocs.map(c => ({ ...c, checked: true }))))}>Auto-map all</button>
-					</div>
-					{visible.map(c => {
-						const locked = c.name.trim().toLowerCase() === 'default';
-						return (
-							<label key={c.uid} className="checkbox">
-								<input type="checkbox" checked={locked || c.checked} disabled={locked} onChange={e => update(withCocs(active, cocs.map(x => x.uid === c.uid ? { ...x, checked: e.target.checked } : x)))} />
-								{c.name}
-							</label>
-						);
-					})}
-					{cocs.length > 4 && <button className="plain" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show fewer' : `Show ${cocs.length - 4} more`}</button>}
-				</div>
-			)}
-			{active && !real && <div className="muted small">{active.type === 'DataSet' ? 'Datasets have no disaggregation: their reporting rate, reports received and expected are downloaded.' : active.cocs?.length ? 'Default (No Disaggregation)' : 'No category options.'}</div>}
-		</div>
-	);
-}
-
-function groupBy<T>(items: readonly T[], key: (item: T) => string): Record<string, T[]> {
-	const out: Record<string, T[]> = {};
-	for (const item of items) {
-		(out[key(item)] ??= []).push(item);
-	}
-	return out;
 }

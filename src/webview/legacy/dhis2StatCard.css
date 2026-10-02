@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.dhis2-profile-view .stat-card-modern {
+	border-radius: 0.5rem;
+	padding: 1.25rem;
+	color: var(--dhis2-text-on-brand);
+	position: relative;
+	overflow: hidden;
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+	display: flex;
+	flex-direction: column;
+}
+
+.dhis2-profile-view .stat-card-modern.theme-red { background-color: var(--dhis2-brand-secondary); }
+.dhis2-profile-view .stat-card-modern.theme-gold { background-color: var(--dhis2-brand-warning); }
+.dhis2-profile-view .stat-card-modern.theme-teal { background-color: var(--dhis2-brand-primary); }
+
+.dhis2-profile-view .stat-card-modern.clickable {
+	cursor: pointer;
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dhis2-profile-view .stat-card-modern.clickable:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.15), 0 3px 5px -1px rgba(0, 0, 0, 0.08);
+}
+.dhis2-profile-view .stat-card-modern.clickable:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #ffffff);
+	outline-offset: 2px;
+}
+
+.dhis2-profile-view .stat-card-modern .bg-icon {
+	position: absolute;
+	top: -10px;
+	right: -10px;
+	padding: 1rem;
+	font-size: 4rem !important;
+	color: var(--dhis2-text-on-brand);
+	opacity: 0.15;
+	transition: transform 0.5s ease;
+}
+.dhis2-profile-view .stat-card-modern:hover .bg-icon { transform: scale(1.1); }
+
+.dhis2-profile-view .stat-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 0.25rem;
+	position: relative;
+	z-index: 2;
+}
+
+.dhis2-profile-view .stat-label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	opacity: 0.9;
+}
+
+/* .monaco-workbench .codicon (workbench/browser/media/style.css) sets color directly on every
+ * codicon element, at the same specificity as the plain 2-class selector this used to be -- tied
+ * specificity falls back to source order, which is unpredictable, so this needs the extra
+ * .stat-card-modern qualifier (matching .bg-icon just above) to reliably win. */
+.dhis2-profile-view .stat-card-modern .stat-icon { color: var(--dhis2-text-on-brand); opacity: 0.8; font-size: 14px !important;}
+
+.dhis2-profile-view .stat-footer .sc-footer-icon { color: var(--dhis2-text-on-brand); margin-right: 4px; font-size: 14px !important; }
+
+.dhis2-profile-view .stat-value {
+	font-size: 2rem;
+	font-family: 'Roboto Mono', monospace;
+	font-weight: 700;
+	margin-bottom: 0.125rem;
+	position: relative;
+	z-index: 2;
+	line-height: 1;
+}
+
+.dhis2-profile-view .stat-sub {
+	font-size: 0.75rem;
+	opacity: 0.8;
+	font-weight: 300;
+	margin-bottom: 0.75rem;
+	position: relative;
+	z-index: 2;
+}
+
+.dhis2-profile-view .stat-footer {
+	padding-top: 0.75rem;
+	border-top: 1px solid rgba(255, 255, 255, 0.2);
+	display: flex;
+	align-items: center;
+	font-size: 0.7rem;
+	font-weight: 500;
+	position: relative;
+	z-index: 2;
+}

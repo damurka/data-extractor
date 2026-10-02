@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.dhis2-profile-view .action-card {
+	padding: 1.5rem;
+	border-radius: 0.75rem;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	text-align: left;
+	transition: all 0.2s;
+	border: none;
+	box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+	color: var(--dhis2-text-on-brand);
+	cursor: pointer;
+}
+
+.dhis2-profile-view .action-card:hover {
+	transform: translateY(-4px);
+}
+
+.dhis2-profile-view .action-card.theme-teal {
+	background-color: var(--dhis2-brand-primary);
+}
+.dhis2-profile-view .action-card.theme-red {
+	background-color: var(--dhis2-brand-secondary);
+}
+.dhis2-profile-view .action-card.theme-gold {
+	background-color: var(--dhis2-brand-warning);
+}
+
+.dhis2-profile-view .action-card .icon-box {
+	background-color: rgba(255, 255, 255, 0.2);
+	padding: 0.5rem;
+	border-radius: 0.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 1rem;
+	transition: background-color 0.2s;
+}
+
+.dhis2-profile-view .action-card:hover .icon-box {
+	background-color: rgba(255, 255, 255, 0.3);
+}
+
+.dhis2-profile-view .action-card .icon-box .codicon {
+	color: var(--dhis2-text-on-brand);
+	font-size: 30px !important;
+}
+
+.dhis2-profile-view .action-title {
+	display: block;
+	font-size: 1.25rem;
+	font-weight: 700;
+	margin-bottom: 0.5rem;
+}
+
+.dhis2-profile-view .action-desc {
+	display: block;
+	font-size: 0.875rem;
+	opacity: 0.8;
+	font-weight: 300;
+}

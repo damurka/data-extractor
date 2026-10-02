@@ -1034,6 +1034,7 @@
     ]
   },
   "scripts": {
+    "prebuild": "npm --prefix ../datasuite-ui-kit/packages/components run build",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit && tsc -p ./src/webview --noEmit",
@@ -1044,6 +1045,8 @@
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-free": "^6.7.2",
+    "@quire/components": "file:../datasuite-ui-kit/packages/components",
     "@types/node": "24.x",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

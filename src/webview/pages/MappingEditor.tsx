@@ -1,15 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Data Extractor: writing a mapping (dhis2ProfileAddMappingView.ts) -- its name, description, mode and indicators. A
- *  new mapping (or a copy) is kept as a draft while it is written, so nothing is lost when the panel closes.
+ *  Data Extractor: writing a mapping -- its name, description, mode and indicators. A new mapping (or a copy) is kept
+ *  as a draft while it is written, so nothing is lost when the panel closes.
  *--------------------------------------------------------------------------------------------*/
 
+import { CdTextArea, FieldSelect } from '@quire/components';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Connection, IAddMappingDraft, IIndicatorDraft, MappingMode } from '../../shared/api';
-import { emptyDraft, newIndicator, validationError } from '../../shared/mapping';
-import { ErrorLine, Icon, PageHeader } from '../components';
+import { emptyDraft, isComplete, newIndicator, validationError } from '../../shared/mapping';
+import { Button, Card, EmptyState, ErrorLine, Field, PageHeader } from '../components';
 import { host, useAction } from '../hooks';
 import { IndicatorCard } from './IndicatorCard';
 import { EditTarget } from './Mappings';
+
+const MODE_OPTIONS = [
+	{ key: 'custom', text: 'Custom: your own indicators' },
+	{ key: 'countdown', text: 'Countdown 2030 indicators' }
+];
 
 export function MappingEditor({ connection, target, done }: { connection: Connection; target: EditTarget; done(): void }) {
 	const id = connection.id;
@@ -50,7 +56,7 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 	useEffect(() => () => clearTimeout(saveTimer.current), []);
 
 	if (!draft) {
-		return <><PageHeader model={{ title: 'Mapping', leading: [{ label: 'Back', icon: 'arrow-left', variant: 'plain', onClick: done }] }} /><ErrorLine error={error} /></>;
+		return <><PageHeader model={{ title: 'Mapping', back: { label: 'Mappings', onClick: done } }} /><ErrorLine error={error} /></>;
 	}
 
 	const problem = validationError(draft);
@@ -60,8 +66,7 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 		const indicator = { ...newIndicator(draft.mode), expanded: true };
 		change({ ...draft, indicators: [...expandOnly(undefined), indicator] });
 	};
-	const slug = (draft.name || '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
-	const idLabel = editingId ? `ID: ${editingId}` : slug && draft.name !== 'New Mapping' ? `ID: MP_${slug.substring(0, 15)}` : 'ID: Pending Save';
+	const complete = draft.indicators.filter(isComplete).length;
 
 	const save = () => void run(async () => {
 		clearTimeout(saveTimer.current);
@@ -83,114 +88,95 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 		}
 		done();
 	});
+	const changeMode = (mode: string) => void run(async () => {
+		if (mode === draft.mode) {
+			return;
+		}
+		if (draft.indicators.length && !(await host.confirm('Change mapping mode?', 'Changing the mode clears the indicators: Countdown and custom indicators are not the same.', 'Change Mode'))) {
+			return;
+		}
+		change({ ...draft, mode: mode as MappingMode, indicators: [] });
+	});
 
 	return (
 		<>
 			<PageHeader model={{
+				back: { label: 'Mappings', onClick: done },
+				eyebrow: editingId ? `ID ${editingId}` : 'New mapping',
 				title: draft.name || 'New Mapping',
-				badge: editingId ? { text: 'EDITING', className: 'amv-badge-editing' } : { text: 'DRAFT', className: 'amv-badge-draft' },
-				meta: [{ text: idLabel }],
-				leading: [{ label: 'Back', icon: 'arrow-left', variant: 'plain', onClick: done }],
+				badge: editingId ? { text: 'Editing', tone: 'editing' } : { text: 'Draft', tone: 'draft' },
+				subtitle: `${draft.indicators.length} indicator${draft.indicators.length === 1 ? '' : 's'}, ${complete} complete.${editingId ? '' : ' The draft is kept as you go.'}`,
 				actions: [
-					{ label: 'Cancel', icon: 'close', variant: 'secondary', onClick: cancel },
-					{ label: 'Save Mapping', icon: 'save', variant: 'primary', onClick: save, disabled: !!problem || busy, title: problem ?? 'Save Mapping' }
+					{ label: 'Cancel', icon: 'xmark', variant: 'secondary', onClick: cancel },
+					{ label: 'Save mapping', icon: 'floppy-disk', onClick: save, disabled: !!problem || busy, title: problem ?? 'Save Mapping' }
 				]
 			}} />
 			<ErrorLine error={error ?? cardError} onDismiss={() => { dismiss(); setCardError(undefined); }} />
-			<div className="editor-layout">
-				<div className="editor-workspace-row">
-					<aside className="config-sidebar custom-scrollbar">
-						<div className="sidebar-form">
-							<div className="sidebar-section">
-								<div className="sidebar-section-label text-red"><Icon name="info" /><h3>General Metadata</h3></div>
-								<div className="d2-form-group">
-									<label className="d2-label">Mapping Name</label>
-									<input className="d2-input" type="text" placeholder="e.g. Monthly ANC Report" value={draft.name} onChange={e => change({ ...draft, name: e.target.value })} />
-								</div>
-								<div className="d2-form-group">
-									<label className="d2-label">Description</label>
-									<textarea className="d2-input" rows={4} placeholder="Describe purpose..." value={draft.description ?? ''} onChange={e => change({ ...draft, description: e.target.value })} />
-								</div>
-							</div>
-							<div className="sidebar-h-divider" />
-							<div className="sidebar-section">
-								<div className="sidebar-section-label text-red"><Icon name="settings" /><h3>Configuration</h3></div>
-								<div className="d2-form-group">
-									<label className="d2-label">Mapping Mode</label>
-									<div className="relative-select-container">
-										<select className="d2-input d2-select" value={draft.mode} onChange={e => void run(async () => {
-											const mode = e.target.value as MappingMode;
-											if (draft.indicators.length && !(await host.confirm('Change mapping mode?', 'Changing the mode clears the indicators: Countdown and custom indicators are not the same.', 'Change Mode'))) {
-												return;
-											}
-											change({ ...draft, mode, indicators: [] });
-										})}>
-											<option value="custom">Custom</option>
-											<option value="countdown">Countdown</option>
-										</select>
-										<Icon name="chevron-down" className="select-custom-arrow" />
-									</div>
-								</div>
-							</div>
+			<div className="de-editor">
+				<aside className="de-editor__side">
+					<Card title="About this mapping" icon="circle-info">
+						<div className="de-fields">
+							<Field label="Name">
+								<input className="cd-field-input" type="text" placeholder="e.g. Monthly ANC report" value={draft.name} onChange={e => change({ ...draft, name: e.target.value })} />
+							</Field>
+							<CdTextArea label="Description" value={draft.description ?? ''} placeholder="What it is for" height={96} onChange={v => change({ ...draft, description: v })} />
+							<FieldSelect label="Indicators" hint="Countdown's are the ones the Countdown analysis uses; custom ones are your own." options={MODE_OPTIONS} value={draft.mode} onChange={changeMode} />
 						</div>
-					</aside>
-					<div className="editor-content-area custom-scrollbar wavy-bg">
-						<div className="content-canvas-centered">
-							<div className="canvas-header-row">
-								<div className="canvas-label-group">
-									<h2 className="canvas-title-text">Indicators Configuration</h2>
-									<p className="canvas-subtitle-text">Define mapping logic for {draft.indicators.length} indicators.</p>
-								</div>
-								<div className="canvas-btn-group-inline">
-									<button type="button" className="d2-btn d2-btn--secondary" onClick={() => void run(async () => {
-										const imported = await host.importMappingFile();
-										if (imported) {
-											change({ ...imported, name: imported.name || draft.name, indicators: imported.indicators.map((i, n) => ({ ...i, expanded: n === 0 })) });
-										}
-									})}><Icon name="cloud-upload" /><span>Import JSON</span></button>
-									{draft.indicators.length > 0 && (
-										<button type="button" className="d2-btn d2-btn--secondary" onClick={() => void run(async () => {
-											if (await host.confirm('Clear all indicators?', 'Every indicator of this mapping is removed.', 'Clear All')) {
-												change({ ...draft, indicators: [] });
-											}
-										})}><Icon name="clear-all" /><span>Clear All</span></button>
-									)}
-									<button type="button" className="d2-btn d2-btn--primary d2-btn--sm" onClick={addIndicator}><Icon name="add" /><span>Add Indicator</span></button>
-								</div>
-							</div>
-							<div className="indicators-list-stack">
-								{draft.indicators.map(indicator => (
-									<IndicatorCard
-										key={indicator.id}
-										connectionId={id}
-										draft={draft}
-										indicator={indicator}
-										onChange={setIndicator}
-										onError={onCardError}
-										onToggle={() => change({ ...draft, indicators: expandOnly(indicator.expanded ? undefined : indicator.id) })}
-										onClone={() => {
-											const copy: IIndicatorDraft = {
-												...indicator, id: newIndicator(draft.mode).id, expanded: true,
-												exportCode: draft.mode === 'countdown' ? '' : indicator.exportCode,
-												internalName: draft.mode === 'countdown' ? '' : `${indicator.internalName || 'Indicator'} (Copy)`
-											};
-											change({ ...draft, indicators: [...expandOnly(undefined), copy] });
-										}}
-										onDelete={() => void run(async () => {
-											if (await host.confirm('Delete indicator?', `"${indicator.internalName || 'Untitled Indicator'}" and its sources are removed from this mapping.`, 'Delete')) {
-												change({ ...draft, indicators: draft.indicators.filter(i => i.id !== indicator.id) });
-											}
-										})}
-									/>
-								))}
-							</div>
-							<button type="button" className="btn-dashed-add" onClick={addIndicator}>
-								<div className="btn-dashed-circle"><Icon name="add" /></div>
-								<span className="btn-dashed-label">Add New Indicator Block</span>
-							</button>
+					</Card>
+					{problem && <p className="cd-field-hint cd-field-hint--warn de-editor__problem">{problem}</p>}
+				</aside>
+				<section className="de-editor__main">
+					<div className="de-editor__head">
+						<div>
+							<h2 className="de-section de-section--flush">Indicators</h2>
+							<p className="de-muted">Each indicator sums the DHIS2 sources it is given, with the disaggregations chosen for each.</p>
+						</div>
+						<div className="de-row-actions">
+							<Button label="Import JSON" icon="file-import" size="sm" onClick={() => void run(async () => {
+								const imported = await host.importMappingFile();
+								if (imported) {
+									change({ ...imported, name: imported.name || draft.name, indicators: imported.indicators.map((i, n) => ({ ...i, expanded: n === 0 })) });
+								}
+							})} />
+							{draft.indicators.length > 0 && <Button label="Clear all" icon="eraser" size="sm" onClick={() => void run(async () => {
+								if (await host.confirm('Clear all indicators?', 'Every indicator of this mapping is removed.', 'Clear All')) {
+									change({ ...draft, indicators: [] });
+								}
+							})} />}
+							<Button label="Add indicator" icon="plus" variant="primary" size="sm" onClick={addIndicator} />
 						</div>
 					</div>
-				</div>
+					{draft.indicators.length === 0 && (
+						<div className="cd-card"><EmptyState title="No indicators yet" message={draft.mode === 'countdown' ? 'Add the Countdown indicators this server has data for, one by one.' : 'Add an indicator, name it, and pick the DHIS2 data it sums.'} actionLabel="Add indicator" onAction={addIndicator} /></div>
+					)}
+					<div className="de-stack">
+						{draft.indicators.map(indicator => (
+							<IndicatorCard
+								key={indicator.id}
+								connectionId={id}
+								draft={draft}
+								indicator={indicator}
+								onChange={setIndicator}
+								onError={onCardError}
+								onToggle={() => change({ ...draft, indicators: expandOnly(indicator.expanded ? undefined : indicator.id) })}
+								onClone={() => {
+									const copy: IIndicatorDraft = {
+										...indicator, id: newIndicator(draft.mode).id, expanded: true,
+										exportCode: draft.mode === 'countdown' ? '' : indicator.exportCode,
+										internalName: draft.mode === 'countdown' ? '' : `${indicator.internalName || 'Indicator'} (Copy)`
+									};
+									change({ ...draft, indicators: [...expandOnly(undefined), copy] });
+								}}
+								onDelete={() => void run(async () => {
+									if (await host.confirm('Delete indicator?', `"${indicator.internalName || 'Untitled Indicator'}" and its sources are removed from this mapping.`, 'Delete')) {
+										change({ ...draft, indicators: draft.indicators.filter(i => i.id !== indicator.id) });
+									}
+								})}
+							/>
+						))}
+					</div>
+					{draft.indicators.length > 0 && <button type="button" className="de-add" onClick={addIndicator}><span className="de-add__plus">+</span>Add another indicator</button>}
+				</section>
 			</div>
 		</>
 	);

@@ -1,17 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Data Extractor: downloads (dhis2ProfileDownloadsView.ts) -- starting one, following it (pause, resume, cancel),
- *  and the finished ones to export.
+ *  Data Extractor: downloads -- starting one, following it (pause, resume, cancel), and the finished ones to export.
  *--------------------------------------------------------------------------------------------*/
 
+import { FieldSelect } from '@quire/components';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Connection, DownloadEstimate, DownloadRequest, DownloadsFilter, IDhis2DownloadHistoryRow, IDhis2DownloadInProgressItem, OrgUnitHit } from '../../shared/api';
 import { CalendarRangePicker } from '../calendar/calendarRangePicker';
-import { Column, DataTable, ErrorLine, Icon, PageHeader, SearchInput } from '../components';
+import { Button, Card, Column, DataTable, Dialog, EmptyState, ErrorLine, Field, Icon, IconButton, PageHeader, SearchInput, Segmented } from '../components';
 import { host, useAction, useLoad } from '../hooks';
 
 const requestOf = (row: IDhis2DownloadHistoryRow | IDhis2DownloadInProgressItem): DownloadRequest => ({
 	mappingId: row.mappingId, startDate: row.startDate, endDate: row.endDate, periodType: row.periodType === 'yearly' ? 'yearly' : 'monthly', adminLevel: row.adminLevel, boundaryOrgUnitUid: row.boundaryOrgUnitUid
 });
+
+const FILTERS: readonly { value: DownloadsFilter; label: string }[] = [
+	{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }, { value: 'failed', label: 'Failed' }
+];
 
 export function Downloads({ connection }: { connection: Connection }) {
 	const id = connection.id;
@@ -28,7 +32,7 @@ export function Downloads({ connection }: { connection: Connection }) {
 	const levelName = (adminLevel: string) => {
 		const n = Number(adminLevel.replace('LEVEL-', ''));
 		const name = levels.value?.find(l => l.level === n)?.name;
-		return <span>Level {n}{name && <span className="dl-level-name"> &middot; {name}</span>}</span>;
+		return <span>Level {n}{name && <span className="de-muted"> &middot; {name}</span>}</span>;
 	};
 	const [run, error, , dismiss] = useAction();
 
@@ -38,36 +42,33 @@ export function Downloads({ connection }: { connection: Connection }) {
 
 	const columns: Column<IDhis2DownloadHistoryRow>[] = [
 		{
-			id: 'details', title: 'Download Context', width: '35%', render: row => {
+			id: 'details', title: 'Download', width: '34%', render: row => {
 				const ok = row.status === 'Completed';
 				return (
-					<div className="cell-filename-wrap">
-						<Icon name={ok ? 'check' : 'error'} className={`cell-status-icon ${ok ? 'text-success' : 'text-error'}`} />
-						<div className="cell-text-block">
-							<div className="cell-title">{row.mappingName}</div>
-							<div className="text-muted cell-subtitle">{row.mappingMode === 'custom' ? `${row.startDate} to ${row.endDate} (${row.periodType})` : `${row.startDate} to ${row.endDate}`}</div>
-						</div>
+					<div className="de-name">
+						<span className={`de-dot ${ok ? 'de-dot--ok' : 'de-dot--bad'}`}><Icon name={ok ? 'check' : 'xmark'} /></span>
+						<span className="de-name__text">
+							<span className="de-name__title">{row.mappingName}</span>
+							<span className="de-name__sub">{row.mappingMode === 'custom' ? `${row.startDate} to ${row.endDate} (${row.periodType})` : `${row.startDate} to ${row.endDate}`}</span>
+						</span>
 					</div>
 				);
 			}
 		},
-		{ id: 'mode', title: 'Mode', width: '10%', render: row => <span>{row.mappingMode === 'custom' ? 'Custom' : 'Countdown'}</span> },
-		{ id: 'level', title: 'Admin', width: '12%', render: row => levelName(row.adminLevel) },
-		{ id: 'size', title: 'Size', width: '10%', render: row => <span>{row.size || '-'}</span> },
-		{ id: 'date', title: 'Date', width: '15%', render: row => <span>{row.date || '-'}</span> },
-		{ id: 'status', title: 'Status', width: '10%', render: row => <span className={`status-pill ${row.status === 'Completed' ? 'success' : 'error'}`}>{row.status}</span> },
+		{ id: 'mode', title: 'Type', width: '11%', render: row => <span className={`de-badge ${row.mappingMode === 'custom' ? 'de-badge--info' : 'de-badge--accent'}`}>{row.mappingMode === 'custom' ? 'Custom' : 'Countdown'}</span> },
+		{ id: 'level', title: 'Admin level', width: '15%', render: row => levelName(row.adminLevel) },
+		{ id: 'size', title: 'Size', width: '9%', align: 'right', render: row => <span className="de-num">{row.size || '-'}</span> },
+		{ id: 'date', title: 'Finished', width: '15%', render: row => <span className="de-muted">{row.date || '-'}</span> },
 		{
-			id: 'actions', title: 'Actions', width: '10%', align: 'right', render: row => (
-				<div className="mapping-action-group">
+			id: 'actions', title: '', width: '16%', align: 'right', render: row => (
+				<div className="de-row-actions">
 					{row.status === 'Completed' ? <>
-						<button type="button" className="mapping-action-btn" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')}><Icon name="table" /></button>
-						<button type="button" className="mapping-action-btn" title="Export to JSON" onClick={() => exportAs(row, 'JSON')}><Icon name="json" /></button>
-					</> : (
-						<button type="button" className="mapping-action-btn" title="Retry Download" onClick={() => void run(() => host.startDownload(id, requestOf(row), row.id))}><Icon name="refresh" /></button>
-					)}
-					<button type="button" className="mapping-action-btn" title="Delete" onClick={() => void run(async () => {
+						<IconButton icon="file-excel" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')} />
+						<IconButton icon="file-code" title="Export to JSON" onClick={() => exportAs(row, 'JSON')} />
+					</> : <IconButton icon="rotate-right" title="Try again" onClick={() => void run(() => host.startDownload(id, requestOf(row), row.id))} />}
+					<IconButton icon="trash-can" title="Delete" danger onClick={() => void run(async () => {
 						if (await host.confirm('Delete download?', `The downloaded data of "${row.mappingName}" is deleted from this computer.`, 'Delete')) { await host.deleteDownload(id, row.id); }
-					})}><Icon name="trash" /></button>
+					})} />
 				</div>
 			)
 		}
@@ -75,46 +76,40 @@ export function Downloads({ connection }: { connection: Connection }) {
 
 	return (
 		<>
-			<PageHeader model={{ title: 'Downloads Manager', actions: [{ label: 'New Download Task', icon: 'add', onClick: () => setCreating(true) }] }} />
+			<PageHeader model={{
+				eyebrow: 'Downloads',
+				title: 'Downloads',
+				subtitle: 'Data downloaded with a mapping, ready to export for the Countdown analysis. A download can be paused and picked up later.',
+				actions: [{ label: 'New download', icon: 'plus', onClick: () => setCreating(true) }]
+			}} />
 			<ErrorLine error={error ?? downloads.error} onDismiss={dismiss} />
-			<div className="downloads-scroll-area">
-				<div className="downloads-toolbar">
-					<div className="filter-segmented-group">
-						{(['all', 'active', 'completed', 'failed'] as DownloadsFilter[]).map(f => (
-							<button key={f} type="button" className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => { setFilter(f); setPage(0); }}>{f[0].toUpperCase() + f.slice(1)}</button>
-						))}
-					</div>
-					<div className="search-wrapper-compact">
-						<SearchInput value={search} placeholder="Search files..." onChange={v => { setSearch(v); setPage(0); }} />
-					</div>
-				</div>
 
-				<section>
-					<h3 className="d2-section-label">In Progress</h3>
-					<div className="downloads-in-progress-list">
-						{inProgress.length === 0 && <div className="downloads-empty-state">No active downloads.</div>}
-						{inProgress.map(item => <DownloadCard key={item.id} item={item}
-							pause={() => void run(() => host.pauseDownload(id, item.id))}
-							resume={() => void run(() => host.startDownload(id, requestOf(item), item.id))}
-							cancel={() => void run(async () => { if (await host.confirm('Cancel download?', `"${item.mappingName}" stops and moves to the history as failed.`, 'Cancel Download')) { await host.cancelDownload(id, item.id); } })} />)}
-					</div>
-				</section>
+			<h2 className="de-section">In progress</h2>
+			{inProgress.length === 0
+				? <div className="cd-card de-quiet">No download is running.</div>
+				: <div className="de-grid-2">
+					{inProgress.map(item => <DownloadCard key={item.id} item={item}
+						pause={() => void run(() => host.pauseDownload(id, item.id))}
+						resume={() => void run(() => host.startDownload(id, requestOf(item), item.id))}
+						cancel={() => void run(async () => { if (await host.confirm('Cancel download?', `"${item.mappingName}" stops and moves to the history as failed.`, 'Cancel Download')) { await host.cancelDownload(id, item.id); } })} />)}
+				</div>}
 
-				<section>
-					<div className="d2-section-header-row">
-						<h3 className="d2-section-label">Recent History</h3>
-						<div className="export-calendar-toggle">
-							{ethiopic && <>
-								<span className="export-calendar-toggle-label">Excel labels:</span>
-								{(['ethiopic', 'gregorian'] as const).map(mode => (
-									<button key={mode} type="button" className={`export-calendar-toggle-btn${labelCalendar === mode ? ' active' : ''}`} onClick={() => setLabelCalendar(mode)}>{mode === 'ethiopic' ? 'Ethiopic' : 'Gregorian'}</button>
-								))}
-							</>}
-						</div>
-					</div>
-					<DataTable columns={columns} rows={history} rowKey={r => r.id} sticky={false} page={page} pageSize={pageSize} onPage={setPage} onPageSize={n => { setPageSize(n); setPage(0); }} />
-				</section>
+			<div className="de-section-row">
+				<h2 className="de-section">History</h2>
+				{ethiopic && (
+					<span className="de-inline">
+						<span className="de-muted">Excel labels</span>
+						<Segmented label="Excel labels" value={labelCalendar} onChange={setLabelCalendar} options={[{ value: 'ethiopic', label: 'Ethiopic' }, { value: 'gregorian', label: 'Gregorian' }]} />
+					</span>
+				)}
 			</div>
+			<div className="de-toolbar">
+				<SearchInput value={search} placeholder="Search downloads" onChange={v => { setSearch(v); setPage(0); }} />
+				<Segmented label="Show" value={filter} onChange={f => { setFilter(f); setPage(0); }} options={FILTERS} />
+			</div>
+			{downloads.value && history.length === 0 && !search && filter === 'all'
+				? <div className="cd-card"><EmptyState title="No downloads yet" message="Start one with New download: choose a mapping, the periods and the level." actionLabel="New download" onAction={() => setCreating(true)} /></div>
+				: <DataTable columns={columns} rows={history} rowKey={r => r.id} page={page} pageSize={pageSize} onPage={setPage} onPageSize={n => { setPageSize(n); setPage(0); }} empty="No download matches." />}
 			{creating && <NewDownload connection={connection} ethiopic={ethiopic} close={() => setCreating(false)} />}
 		</>
 	);
@@ -123,41 +118,25 @@ export function Downloads({ connection }: { connection: Connection }) {
 function DownloadCard({ item, pause, resume, cancel }: { item: IDhis2DownloadInProgressItem; pause(): void; resume(): void; cancel(): void }) {
 	const downloading = item.state === 'downloading';
 	const paused = item.state === 'paused';
-	const theme = downloading ? 'red' : 'green';
 	return (
-		<div className={`download-card theme-${theme}`}>
-			<div className="card-decoration-circle pos-top" />
-			<div className="card-decoration-circle pos-bottom" />
-			<div className="card-content-inner">
-				<div className="card-header-row">
-					<div className="card-header-left">
-						<div className="card-icon-box-blur"><Icon name={downloading ? 'cloud-download' : paused ? 'debug-pause' : 'server-process'} className="card-icon-box-glyph" /></div>
-						<div className="card-info-block">
-							<h4 className="card-file-name">{item.mappingName || 'Download Task'}</h4>
-							<p className="card-file-sub">{item.subtitle}</p>
-						</div>
-					</div>
-					<div className="card-action-group">
-						{downloading && <button type="button" className="card-action-circle-btn" title="Pause" onClick={pause}><Icon name="debug-pause" className="card-action-icon" /></button>}
-						{paused && <button type="button" className="card-action-circle-btn" title="Resume" onClick={resume}><Icon name="debug-start" className="card-action-icon" /></button>}
-						<button type="button" className="card-action-circle-btn" title="Cancel" onClick={cancel}><Icon name="close" className="card-action-icon" /></button>
-					</div>
-				</div>
-				<div className="card-progress-area">
-					<div className="card-progress-labels">
-						<span>{downloading ? 'Downloading...' : paused ? 'Paused' : 'Processing data structures...'}</span>
-						<span className="bold">{item.rightText}</span>
-					</div>
-					<div className="card-progress-track-blur">
-						<div className={`card-progress-fill fill-${theme}`} style={{ width: `${item.progressPct}%` }}>{downloading && <div className="fill-pulse-overlay" />}</div>
-					</div>
-				</div>
+		<Card title={item.mappingName || 'Download'} subtitle={item.subtitle} icon={downloading ? 'cloud-arrow-down' : paused ? 'pause' : 'gears'}
+			tools={<>
+				{downloading && <IconButton icon="pause" title="Pause" onClick={pause} />}
+				{paused && <IconButton icon="play" title="Resume" onClick={resume} />}
+				<IconButton icon="xmark" title="Cancel" danger onClick={cancel} />
+			</>}>
+			<div className="de-progress__labels">
+				<span>{downloading ? 'Downloading' : paused ? 'Paused: resumes where it stopped' : 'Preparing the data'}</span>
+				<strong>{item.rightText}</strong>
 			</div>
-		</div>
+			<div className={`de-progress${paused ? ' de-progress--paused' : ''}${downloading ? ' de-progress--live' : ''}`}>
+				<div className="de-progress__fill" style={{ width: `${item.progressPct}%` }} />
+			</div>
+		</Card>
 	);
 }
 
-/** The New Download dialog ("Configure Download Task"), with the original calendar range picker. */
+/** The New download dialog: the mapping, the periods (the calendar range picker), the level and an optional area. */
 function NewDownload({ connection, ethiopic, close }: { connection: Connection; ethiopic: boolean; close(): void }) {
 	const id = connection.id;
 	const mappings = useLoad(() => host.listMappings(id), [id]);
@@ -178,7 +157,7 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 	useEffect(() => { if (!mappingId && mappings.value?.length) { setMappingId(mappings.value[0].id); } }, [mappings.value, mappingId]);
 	useEffect(() => { if (!level && levels.value?.length) { setLevel(levels.value[0].level); } }, [levels.value, level]);
 
-	// The picker is the built-in extractor's own widget (plain DOM), mounted once
+	// The picker is DataSuite's own widget (plain DOM), mounted once
 	useEffect(() => {
 		if (!pickerHost.current) {
 			return;
@@ -198,7 +177,7 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 	const request = useMemo<DownloadRequest | undefined>(() => mappingId && level ? {
 		mappingId, startDate: iso(range.start), endDate: iso(range.end), periodType: mapping?.mode === 'custom' ? periodType : 'monthly', adminLevel: `LEVEL-${level}`, boundaryOrgUnitUid: boundary?.uid
 	} : undefined, [mappingId, range, periodType, level, boundary, mapping?.mode]);
-	const dateProblem = range.start > range.end ? 'Start Date cannot be after End Date.' : undefined;
+	const dateProblem = range.start > range.end ? 'The start date is after the end date.' : undefined;
 
 	useEffect(() => {
 		setEstimate(undefined);
@@ -220,91 +199,59 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 
 	const canStart = !!request && !dateProblem && !busy;
 	return (
-		<div className="dl-modal-overlay" onMouseDown={e => { if (e.target === e.currentTarget) { close(); } }}>
-			<div className="dl-modal">
-				<h2 className="dl-modal-title">Configure Download Task</h2>
-				<p className="dl-modal-subtitle">Select the mapping and configure parameters to pull data.</p>
-				<ErrorLine error={error ?? mappings.error ?? levels.error} onDismiss={dismiss} />
-
-				<div className="d2-form-group">
-					<label>Mapping Configuration</label>
-					<select className="d2-input d2-select" value={mappingId} onChange={e => setMappingId(e.target.value)}>
-						{!mappings.value?.length && <option value="">No mappings available</option>}
-						{mappings.value?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-					</select>
+		<Dialog title="New download" onClose={close} size="lg" footer={<>
+			<Button label="Cancel" onClick={close} />
+			<Button label="Start download" icon="cloud-arrow-down" variant="primary" disabled={!canStart} onClick={() => void run(async () => { await host.startDownload(id, request!); close(); })} />
+		</>}>
+			<ErrorLine error={error ?? mappings.error ?? levels.error} onDismiss={dismiss} />
+			<div className="de-fields">
+				<FieldSelect label="Mapping" options={mappings.value?.length ? mappings.value.map(m => ({ key: m.id, text: m.name })) : [{ key: '', text: 'No mappings yet' }]} value={mappingId} onChange={setMappingId} />
+				<Field label="Periods" hint={ethiopic ? 'This server uses the Ethiopian calendar.' : undefined}>
+					<div className="de-calendar" ref={pickerHost} />
+				</Field>
+				<div className="de-grid-2">
+					{mapping?.mode === 'custom' && (
+						<FieldSelect label="Frequency" options={[{ key: 'monthly', text: 'Monthly' }, { key: 'yearly', text: 'Yearly' }]} value={periodType} onChange={v => setPeriodType(v as typeof periodType)} />
+					)}
+					<FieldSelect label="Admin level" options={(levels.value ?? []).map(l => ({ key: String(l.level), text: `Level ${l.level} · ${l.name}` }))} value={level ? String(level) : null}
+						onChange={v => { setLevel(Number(v)); setBoundary(undefined); }} />
 				</div>
-
-				<div className="d2-form-group">
-					<label>Date Range (Start &amp; End)</label>
-					<div className="dl-calendar-wrapper" ref={pickerHost} />
-				</div>
-
-				{mapping?.mode === 'custom' && (
-					<div className="d2-form-group">
-						<label>Frequency</label>
-						<select className="d2-input d2-select" value={periodType} onChange={e => setPeriodType(e.target.value as typeof periodType)}>
-							<option value="monthly">Monthly</option>
-							<option value="yearly">Yearly</option>
-						</select>
-					</div>
-				)}
-
-				<div className="d2-form-group">
-					<label>Admin Level</label>
-					<select className="d2-input d2-select" value={level} onChange={e => { setLevel(Number(e.target.value)); setBoundary(undefined); }}>
-						{levels.value?.map(l => <option key={l.level} value={l.level}>Level {l.level} ({l.name})</option>)}
-					</select>
-				</div>
-
 				{levelInfo && levelInfo.count > 1 && (
-					<div className="d2-form-group">
-						<label>Sub-region (optional)</label>
-						<div className="dl-boundary-picker">
-							{!boundary && <div><SearchInput value={boundaryQuery} placeholder={`Search for a ${levelInfo.name} to limit the download to...`} onChange={setBoundaryQuery} /></div>}
-							<div className="dl-boundary-chip-host">
-								{boundary && (
-									<div className="ic-chip">
-										<span className="ic-chip-main">{boundary.name}</span>
-										<button type="button" className="ic-chip-close" onClick={() => setBoundary(undefined)}><Icon name="close" /></button>
+					<Field label="Within (optional)" hint={`Only the ${levelInfo.name.toLowerCase()} units inside one area.`}>
+						{boundary
+							? <span className="de-chip"><span className="de-chip__text"><span className="de-chip__main">{boundary.name}</span>{boundary.pathNames && <span className="de-chip__sub">{boundary.pathNames}</span>}</span>
+								<button type="button" className="de-chip__remove" onClick={() => setBoundary(undefined)} aria-label="Remove"><Icon name="xmark" /></button></span>
+							: <div className="de-picker">
+								<SearchInput value={boundaryQuery} placeholder={`Search for an area to limit the download to`} onChange={setBoundaryQuery} />
+								{boundaryHits && (
+									<div className="de-results">
+										{boundaryHits.length === 0 && <div className="de-results__empty">Nothing matches.</div>}
+										{boundaryHits.map(ou => (
+											<button key={ou.uid} type="button" className="de-results__item" onClick={() => { setBoundary(ou); setBoundaryQuery(''); }}>
+												<span className="de-list__title">{ou.name}</span>
+												{ou.pathNames && <span className="de-list__sub">{ou.pathNames}</span>}
+											</button>
+										))}
 									</div>
 								)}
-							</div>
-							{!boundary && boundaryHits && (
-								<div className="search-results-list">
-									{boundaryHits.length === 0 && <div className="search-result-item no-select">No matching org units found</div>}
-									{boundaryHits.map(ou => (
-										<div key={ou.uid} className="search-result-item" onClick={() => { setBoundary(ou); setBoundaryQuery(''); }}>
-											<div className="res-top-row"><span className="res-name">{ou.name}</span></div>
-											{ou.pathNames && <div className="res-bottom-row"><span className="res-id">{ou.pathNames}</span></div>}
-										</div>
-									))}
-								</div>
-							)}
-						</div>
-					</div>
+							</div>}
+					</Field>
 				)}
-
-				{dateProblem && <p className="dl-modal-subtitle text-error">{dateProblem}</p>}
+				{dateProblem && <p className="cd-field-hint cd-field-hint--bad">{dateProblem}</p>}
 				{estimate && <>
-					<div className="dl-estimate">
-						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.dataItems.toLocaleString()}</div><div className="dl-estimate-label">Data items</div></div>
-						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.periods.toLocaleString()}</div><div className="dl-estimate-label">Periods</div></div>
-						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.organisationUnits.toLocaleString()}</div><div className="dl-estimate-label">Org units</div></div>
-						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.requests.toLocaleString()}</div><div className="dl-estimate-label">Requests</div></div>
+					<div className="de-estimate">
+						{([[estimate.dataItems, 'Data items'], [estimate.periods, 'Periods'], [estimate.organisationUnits, 'Org units'], [estimate.requests, 'Requests']] as const).map(([n, label]) => (
+							<div key={label} className="de-estimate__cell"><div className="de-estimate__value">{n.toLocaleString()}</div><div className="de-estimate__label">{label}</div></div>
+						))}
 					</div>
-					<p className={`dl-estimate-note${estimate.requests > 200 ? ' warning' : ''}`}>
+					<p className={`cd-field-hint${estimate.requests > 200 ? ' cd-field-hint--warn' : ''}`}>
 						{estimate.firstPeriod && <>Periods {estimate.firstPeriod} to {estimate.lastPeriod}. </>}
 						{estimate.requests > 200
 							? 'A large download: it can take a long while. It can be paused and resumed, and DataSuite adapts to the server as it goes.'
 							: 'DataSuite adapts to the server as it goes: more requests at once while it answers quickly, smaller ones if it struggles.'}
 					</p>
 				</>}
-
-				<div className="dl-modal-actions">
-					<button type="button" className="btn-cancel-plain" onClick={close}>Cancel</button>
-					<button type="button" className={`btn-save-red${canStart ? '' : ' is-disabled'}`} disabled={!canStart} onClick={() => void run(async () => { await host.startDownload(id, request!); close(); })}>Start Download</button>
-				</div>
 			</div>
-		</div>
+		</Dialog>
 	);
 }

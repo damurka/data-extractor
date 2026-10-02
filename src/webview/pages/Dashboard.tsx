@@ -1,29 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Data Extractor: the dashboard (dhis2DashboardView.ts) -- the metadata copy, the mappings, the downloads under way,
- *  and where to go next.
+ *  Data Extractor: the dashboard -- the metadata copy, the mappings, the downloads under way, where to go next, and the
+ *  last finished downloads.
  *--------------------------------------------------------------------------------------------*/
 
 import { Connection, IDhis2DownloadHistoryRow } from '../../shared/api';
-import { ActionCard, ErrorLine, HeaderModel, Icon, PageHeader, StatCard } from '../components';
+import { ActionCard, Card, EmptyState, ErrorLine, IconButton, Icon, PageHeader, StatCard } from '../components';
 import { fromNow, host, useAction, useLoad } from '../hooks';
 
-export function dashboardHeader(connection: Connection, sync: () => void, syncing: boolean): HeaderModel {
-	return {
-		title: connection.country ?? 'Dashboard',
-		meta: [
-			{ icon: 'link', text: connection.serverUrl },
-			{ icon: 'account', text: connection.username },
-			{ icon: 'globe', text: connection.displayName }
-		],
-		actions: [{ label: 'Sync Meta', icon: 'sync', variant: 'primary', onClick: sync, disabled: syncing }]
-	};
-}
-
 export function Dashboard({ connection, go }: { connection: Connection; go: (page: 'mappings' | 'downloads' | 'new-mapping') => void }) {
-	const recent = useLoad(() => host.downloads(connection.id, 'completed', ''), [connection.id], ['downloadsChanged'], connection.id);
-	const calendar = useLoad(() => host.calendar(connection.id), [connection.id]);
-	const labels = /^ethiop/i.test(calendar.value ?? '') ? 'ethiopic' : 'gregorian';
 	const id = connection.id;
+	const recent = useLoad(() => host.downloads(id, 'completed', ''), [id], ['downloadsChanged'], id);
+	const calendar = useLoad(() => host.calendar(id), [id]);
+	const labels = /^ethiop/i.test(calendar.value ?? '') ? 'ethiopic' : 'gregorian';
 	const status = useLoad(() => host.metadataStatus(id), [id], ['metadataChanged']);
 	const mappings = useLoad(() => host.listMappings(id), [id], ['mappingsChanged'], id);
 	const downloads = useLoad(() => host.downloads(id, 'active', ''), [id], ['downloadsChanged'], id);
@@ -33,52 +21,50 @@ export function Dashboard({ connection, go }: { connection: Connection; go: (pag
 	const s = status.value;
 	const total = s ? s.dataElements + s.categoryOptionCombos + s.organisationUnits : undefined;
 	const metadataFooter: [string, string | undefined] = !s ? ['-', undefined]
-		: s.syncing ? ['Syncing…', 'sync']
-			: s.error ? [`Sync failed: ${s.error}`, 'error']
-				: s.lastSyncedAt ? [`Synced ${fromNow(s.lastSyncedAt)}`, 'check-all']
+		: s.syncing ? ['Syncing…', 'rotate']
+			: s.error ? [`Sync failed: ${s.error}`, 'triangle-exclamation']
+				: s.lastSyncedAt ? [`Synced ${fromNow(s.lastSyncedAt)}`, 'circle-check']
 					: ['Not synced yet', undefined];
 
 	const active = downloads.value?.inProgress ?? [];
 	const downloading = active.filter(d => d.state === 'downloading');
-	const downloadsFooter: [string, string] = downloads.error ? ['Unable to load downloads', 'error']
-		: downloading.length === 1 ? [`Downloading ${downloading[0].rightText}`, 'cloud-download']
-			: downloading.length > 1 ? ['Downloading…', 'cloud-download']
-				: active.some(d => d.state === 'paused') ? ['Paused', 'debug-pause']
-					: active.length ? ['Processing', 'sync']
-						: ['No active downloads', 'circle-outline'];
+	const downloadsFooter: [string, string] = downloads.error ? ['Unable to load downloads', 'triangle-exclamation']
+		: downloading.length === 1 ? [`Downloading ${downloading[0].rightText}`, 'cloud-arrow-down']
+			: downloading.length > 1 ? ['Downloading…', 'cloud-arrow-down']
+				: active.some(d => d.state === 'paused') ? ['Paused', 'pause']
+					: active.length ? ['Processing', 'rotate']
+						: ['No active downloads', 'circle'];
 
 	return (
 		<>
-			<PageHeader model={dashboardHeader(connection, sync, !!s?.syncing)} />
+			<PageHeader model={{
+				eyebrow: connection.country ? 'DHIS2 · ' + connection.country : 'DHIS2',
+				title: 'Dashboard',
+				subtitle: `${connection.displayName}, as ${connection.username}. Map the indicators you need to this server's data, then download them for the Countdown analysis.`,
+				actions: [{ label: s?.syncing ? 'Syncing…' : 'Sync metadata', icon: 'rotate', variant: 'secondary', onClick: sync, disabled: !!s?.syncing }]
+			}} />
 			<ErrorLine error={error ?? status.error ?? mappings.error} onDismiss={dismiss} />
-			<div className="dashboard-scroll-area">
-				<section>
-					<div className="grid-3-col">
-						<StatCard theme="red" label="Metadata Cache" icon="database" value={total === undefined ? '-' : total.toLocaleString()} sub="Objects cached"
-							footer={metadataFooter[0]} footerIcon={metadataFooter[1]} onClick={s?.syncing ? undefined : sync} />
-						<StatCard theme="gold" label="Active Mappings" icon="map" value={mappings.value ? mappings.value.length.toLocaleString() : '-'} sub="Saved configurations"
-							footer={mappings.error ? 'Unable to load mappings' : mappings.value?.length ? `Recent: ${mappings.value[0].name}` : 'No mappings yet'}
-							footerIcon={mappings.error ? 'error' : 'refresh'} />
-						<StatCard theme="teal" label="Downloads Queue" icon="cloud-download" value={downloads.value ? active.length.toLocaleString() : '-'}
-							footer={downloadsFooter[0]} footerIcon={downloadsFooter[1]} />
-					</div>
-				</section>
-				<section>
-					<h3 className="d2-section-label"><Icon name="zap" className="text-brand-gold" /> Quick Actions</h3>
-					<div className="grid-3-col">
-						<ActionCard theme="teal" icon="add" title="Create New Mapping" desc="Start a new workflow from scratch. Define sources and destinations." onClick={() => go('new-mapping')} />
-						<ActionCard theme="red" icon="folder-opened" title="Open Existing" desc="Load previously saved configuration files to resume work." onClick={() => go('mappings')} />
-						<ActionCard theme="gold" icon="history" title="View Downloads" desc="Manage exported files, view logs and access completed data." onClick={() => go('downloads')} />
-					</div>
-				</section>
-				<section>
-					<div className="d2-section-header-row">
-						<h3 className="d2-section-label"><Icon name="history" className="text-brand-teal" /> Recent Downloads</h3>
-						<button type="button" className="d2-section-link" onClick={() => go('downloads')}>View all</button>
-					</div>
-					<RecentDownloads rows={recent.value?.history.slice(0, 5)} exportAs={(row, format) => void run(() => host.exportDownload(id, row.id, format, labels))} />
-				</section>
+			<div className="de-grid-3">
+				<StatCard label="Metadata copy" icon="database" value={total === undefined ? '-' : total.toLocaleString()} sub="Data elements, disaggregations and organisation units"
+					footer={metadataFooter[0]} footerIcon={metadataFooter[1]} onClick={s?.syncing ? undefined : sync} />
+				<StatCard label="Mappings" icon="diagram-project" value={mappings.value ? mappings.value.length.toLocaleString() : '-'} sub="Saved"
+					footer={mappings.error ? 'Unable to load mappings' : mappings.value?.length ? `Latest: ${mappings.value[0].name}` : 'No mappings yet'}
+					footerIcon={mappings.error ? 'triangle-exclamation' : 'clock-rotate-left'} onClick={() => go('mappings')} />
+				<StatCard label="Downloads" icon="cloud-arrow-down" value={downloads.value ? active.length.toLocaleString() : '-'} sub="Running or paused"
+					footer={downloadsFooter[0]} footerIcon={downloadsFooter[1]} onClick={() => go('downloads')} />
 			</div>
+
+			<h2 className="de-section">Next</h2>
+			<div className="de-grid-3">
+				<ActionCard icon="plus" title="New mapping" desc="Map the Countdown indicators, or your own, to this server's data elements and indicators." onClick={() => go('new-mapping')} />
+				<ActionCard icon="folder-open" title="Open a mapping" desc="Change a saved mapping, copy it, or export it to share." onClick={() => go('mappings')} />
+				<ActionCard icon="cloud-arrow-down" title="Download data" desc="Start a download, follow it, and export finished ones to Excel." onClick={() => go('downloads')} />
+			</div>
+
+			<Card title="Recent downloads" icon="clock-rotate-left" flush
+				tools={<button type="button" className="cd-button cd-button--link" onClick={() => go('downloads')}>View all</button>}>
+				<RecentDownloads rows={recent.value?.history.slice(0, 5)} exportAs={(row, format) => void run(() => host.exportDownload(id, row.id, format, labels))} />
+			</Card>
 		</>
 	);
 }
@@ -88,20 +74,22 @@ function RecentDownloads({ rows, exportAs }: { rows: IDhis2DownloadHistoryRow[] 
 	if (!rows) {
 		return null;
 	}
+	if (rows.length === 0) {
+		return <EmptyState title="No finished downloads yet" message="Start one from Downloads; it shows here when it is done." />;
+	}
 	return (
-		<div className="recent-downloads">
-			{rows.length === 0 && <div className="recent-downloads-empty">No finished downloads yet. Start one from Downloads; it shows here when it is done.</div>}
+		<div className="de-list">
 			{rows.map(row => (
-				<div key={row.id} className="recent-download-row">
-					<Icon name="check" className="cell-status-icon text-success" />
-					<div className="cell-text-block">
-						<div className="cell-title">{row.mappingName}</div>
-						<div className="text-muted cell-subtitle">{row.startDate} to {row.endDate} &middot; {row.adminLevel.replace('LEVEL-', 'Level ')}</div>
+				<div key={row.id} className="de-list__row">
+					<span className="de-dot de-dot--ok"><Icon name="check" /></span>
+					<div className="de-list__text">
+						<div className="de-list__title">{row.mappingName}</div>
+						<div className="de-list__sub">{row.startDate} to {row.endDate} &middot; {row.adminLevel.replace('LEVEL-', 'Level ')}</div>
 					</div>
-					<span className="recent-download-meta">{row.size} &middot; {row.date}</span>
-					<div className="mapping-action-group">
-						<button type="button" className="mapping-action-btn" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')}><Icon name="table" /></button>
-						<button type="button" className="mapping-action-btn" title="Export to JSON" onClick={() => exportAs(row, 'JSON')}><Icon name="json" /></button>
+					<span className="de-list__meta">{row.size} &middot; {row.date}</span>
+					<div className="de-row-actions">
+						<IconButton icon="file-excel" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')} />
+						<IconButton icon="file-code" title="Export to JSON" onClick={() => exportAs(row, 'JSON')} />
 					</div>
 				</div>
 			))}

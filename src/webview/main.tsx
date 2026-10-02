@@ -1,12 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Data Extractor: the webview's React app, laid out as the built-in extractor was -- the connections screen
- *  (dhis2LoginProfileView.ts) or the profile view: its sidebar (dhis2ProfileSidebar.ts) and main area.
+ *  Data Extractor: the webview's React app, laid out as the Countdown apps are (datasuite.ui's app shell): the brand,
+ *  the top bar (breadcrumb, the connection, Disconnect), the sidebar (@quire/components' Sidebar, which switches the
+ *  pages) and the page. Before a connection is chosen, the connections.
  *--------------------------------------------------------------------------------------------*/
 
-import { useEffect, useState } from 'react';
+import './host';
+import { HeaderBreadcrumb, NavSection, setActiveTab, Sidebar, useActiveTab } from '@quire/components';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Connection } from '../shared/api';
-import { ErrorLine, Icon } from './components';
+import mark from './assets/countdown-mark.png';
+import { Button, EmptyState, ErrorLine, fa, Icon } from './components';
 import { host, useAction, useLoad } from './hooks';
 import { viewState } from './rpc';
 import { Dashboard } from './pages/Dashboard';
@@ -17,91 +21,148 @@ import { Settings } from './pages/Settings';
 import './styles.css';
 
 type Page = 'dashboard' | 'mappings' | 'downloads' | 'settings';
+const PAGES: readonly Page[] = ['dashboard', 'mappings', 'downloads', 'settings'];
 interface State { connectionId?: string; page?: Page }
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
+const DOCS = 'https://datasuite.damurka.com/en/docs/';
 
-function Logo({ className, as: Title }: { className: string; as: 'h1' }) {
+const SECTIONS: NavSection[] = [
+	{
+		label: 'Data Extractor',
+		items: [
+			{ key: 'dashboard', tabName: 'dashboard', label: 'Dashboard', icon: fa('gauge-high') },
+			{ key: 'mappings', tabName: 'mappings', label: 'Mappings', icon: fa('diagram-project') },
+			{ key: 'downloads', tabName: 'downloads', label: 'Downloads', icon: fa('cloud-arrow-down') },
+		]
+	},
+	{
+		label: 'This server',
+		items: [{ key: 'settings', tabName: 'settings', label: 'Download settings', icon: fa('sliders') }]
+	}
+];
+
+const hostOf = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+
+function Brand({ sub }: { sub: string }) {
 	return (
-		<div className={className}>
-			<div className="dhis2-login-logo-container"><div className="dhis2-suite-logo" /></div>
-			<Title className={className === 'sidebar-header' ? 'app-title' : undefined}>Countdown <span>to 2030</span></Title>
-			<p className={className === 'sidebar-header' ? 'app-brand' : undefined}>DHIS2 Data Extractor</p>
+		<div className="cd-shell__brand cd-brand">
+			<img className="cd-brand__mark" src={mark} alt="" width={36} height={36} />
+			<div>
+				<span className="cd-brand__name">Data Extractor</span>
+				<span className="cd-brand__version">{sub}</span>
+			</div>
 		</div>
 	);
 }
 
-/** DataSuite's DHIS2 connections, to pick one (the built-in extractor's "Select Data Profile"). */
+/** DataSuite's DHIS2 connections, to pick one. */
 function Connections({ connections, choose }: { connections: Connection[]; choose: (connection: Connection) => void }) {
 	const [run, error, , dismiss] = useAction();
+	const signIn = () => void run(async () => { const c = await host.signIn(); if (c) { choose(c); } });
 	return (
-		<div className="dhis2-login-view">
-			<div className="dhis2-login-view-container">
-				<div className="dhis2-profiles-wrapper">
-					<div className="dhis2-profiles-top-header"><Logo className="dhis2-login-header-logo" as="h1" /></div>
-					<div className="dhis2-profiles-card">
-						<div className="dhis2-profiles-header">
-							<div>
-								<h2><span className="codicon codicon-server-environment" /><span>Select Data Profile</span></h2>
-								<p>Choose a DHIS2 connection to continue. DataSuite keeps the connections and their passwords or tokens.</p>
-							</div>
-							<button type="button" className="dhis2-profiles-add-btn" onClick={() => void run(async () => { const c = await host.signIn(); if (c) { choose(c); } })}>
-								<span className="codicon codicon-add" /><span>Add New Profile</span>
-							</button>
-						</div>
-						<ErrorLine error={error} onDismiss={dismiss} />
-						<div className="dhis2-profiles-list">
-							{connections.length === 0 && <p className="dhis2-profiles-empty">No DHIS2 connection yet: add one with Add New Profile. DataSuite asks for a personal access token (recommended) or your password, keeps it encrypted, and never gives it to extensions.</p>}
-							{connections.map(c => (
-								<div key={c.id} className="dhis2-profile-row">
-									<div className="dhis2-profile-row-left">
-										<div className="dhis2-profile-avatar">{(c.displayName || c.username || '?').charAt(0).toUpperCase()}</div>
-										<div className="dhis2-profile-info">
-											<h3>{c.displayName}</h3>
-											<div className="dhis2-profile-url-row"><span className="codicon codicon-link" /><span>{c.serverUrl}</span></div>
-										</div>
-									</div>
-									<div className="dhis2-profile-row-actions">
-										<button type="button" className="dhis2-profile-connect-btn" onClick={() => void run(async () => {
-											if (c.granted || await host.requestAccess(c.id)) {
-												choose(c);
-											}
-										})}><span>Connect</span></button>
-									</div>
-								</div>
-							))}
-						</div>
-						<div className="dhis2-profiles-footer">
-							<button type="button" className="dhis2-profiles-manage" onClick={() => void run(() => host.manageConnections())}>Manage extension access</button>
-							<span>Version {VERSION}</span>
-						</div>
+		<div className="de-connect">
+			<div className="de-connect__inner">
+				<div className="de-connect__brand"><Brand sub={`Countdown 2030 · DHIS2 · v${VERSION}`} /></div>
+				<div className="cd-page-header">
+					<div className="cd-page-heading">
+						<span className="cd-page-eyebrow">DHIS2</span>
+						<h1>Choose a connection</h1>
+						<p className="cd-page-subtitle">The DHIS2 server to map and download from. DataSuite keeps the connections and their passwords or tokens; this extension never sees them.</p>
 					</div>
+					<div className="right-buttons">
+						<button type="button" className="cd-hdr-btn cd-hdr-btn--primary" onClick={signIn}><Icon name="plus" /><span className="cd-hdr-btn__label">Add connection</span></button>
+					</div>
+				</div>
+				<ErrorLine error={error} onDismiss={dismiss} />
+				<div className="cd-card de-connect__list">
+					{connections.length === 0 && (
+						<EmptyState title="No DHIS2 connection yet" actionLabel="Add connection" onAction={signIn}
+							message="Sign in to a DHIS2 server in DataSuite's dialog: a personal access token is recommended. DataSuite keeps it encrypted and never gives it to extensions." />
+					)}
+					{connections.map(c => (
+						<div key={c.id} className="de-connect__row">
+							<span className="de-connect__avatar">{(c.country || c.displayName || c.username || '?').charAt(0).toUpperCase()}</span>
+							<span className="de-connect__info">
+								<span className="de-connect__name">{c.country || c.displayName}</span>
+								<span className="de-connect__url">{hostOf(c.serverUrl)} &middot; {c.username}{c.usesAccessToken ? ' · access token' : ''}</span>
+							</span>
+							{!c.granted && <span className="de-badge de-badge--info">Asks first</span>}
+							<Button label="Connect" variant="primary" size="sm" onClick={() => void run(async () => {
+								if (c.granted || await host.requestAccess(c.id)) {
+									choose(c);
+								}
+							})} />
+						</div>
+					))}
+				</div>
+				<div className="de-connect__foot">
+					<Button label="Manage extension access" variant="link" onClick={() => void run(() => host.manageConnections())} />
+					<span>Data Extractor {VERSION}</span>
 				</div>
 			</div>
 		</div>
 	);
 }
 
-function Sidebar({ page, go, disconnect }: { page: Page; go: (page: Page) => void; disconnect: () => void }) {
-	const link = (id: Page, label: string, icon: string) => (
-		<a className={`nav-link${page === id ? ' active' : ''}`} href="#" onClick={e => { e.preventDefault(); go(id); }}>
-			<Icon name={icon} /><span>{label}</span>
-		</a>
-	);
+/** The app shell around a connection's pages. */
+function Shell({ connection, initialPage, disconnect }: { connection: Connection; initialPage: Page; disconnect: () => void }) {
+	const tab = useActiveTab();
+	const page: Page = (PAGES as readonly string[]).includes(tab) ? tab as Page : initialPage;
+	const [editing, setEditing] = useState<EditTarget>();
+	/** What the next page opens on (a new mapping, from the dashboard); another page from the sidebar opens on its list. */
+	const nextEditing = useRef<EditTarget>(undefined);
+
+	useEffect(() => viewState.set<State>({ connectionId: connection.id, page }), [connection.id, page]);
+	useEffect(() => {
+		setEditing(nextEditing.current);
+		nextEditing.current = undefined;
+	}, [page]);
+
+	const go = (to: Page | 'new-mapping') => {
+		const target: Page = to === 'new-mapping' ? 'mappings' : to;
+		const edit: EditTarget | undefined = to === 'new-mapping' ? { kind: 'new' } : undefined;
+		if (target === page) {
+			setEditing(edit);
+		} else {
+			nextEditing.current = edit;
+			setActiveTab(target);
+		}
+	};
+
 	return (
-		<aside className="app-sidebar">
-			<Logo className="sidebar-header" as="h1" />
-			<nav className="sidebar-nav">
-				{link('dashboard', 'Dashboard', 'dashboard')}
-				{link('mappings', 'Mappings', 'map')}
-				{link('downloads', 'Downloads', 'cloud-download')}
-			</nav>
-			<div className="sidebar-footer">
-				{link('settings', 'Settings', 'settings-gear')}
-				<button type="button" className="btn-disconnect" onClick={disconnect}><Icon name="debug-disconnect" /><span>Disconnect</span></button>
-				<p className="app-version">Version {VERSION}</p>
+		<div className="cd-shell">
+			<header className="cd-shell__header">
+				<Brand sub={hostOf(connection.serverUrl)} />
+				<nav className="cd-navbar" aria-label="Data Extractor">
+					<span className="cd-header-crumb"><HeaderBreadcrumb sections={SECTIONS} /></span>
+					<span className="cd-header-pill-slot">
+						<span className="cd-dataset-pill" title={`${connection.username} @ ${connection.serverUrl}`}>
+							<span className="cd-dataset-pill__dot" />
+							<span className="cd-dataset-pill__country">{connection.country || connection.displayName}</span>
+							<span className="cd-dataset-pill__file">{connection.username}</span>
+						</span>
+					</span>
+					<span className="cd-header-right">
+						<button type="button" className="cd-hdr-btn cd-hdr-btn--outline" onClick={disconnect} title="Choose another connection">
+							<Icon name="right-from-bracket" /><span className="cd-hdr-btn__label">Disconnect</span>
+						</button>
+					</span>
+				</nav>
+			</header>
+			<aside className="cd-shell__sidebar">
+				<Sidebar sections={SECTIONS} initialTab={initialPage} docsLabel="Help" docsHref={DOCS} />
+			</aside>
+			<div className="cd-shell__content">
+				<main className="cd-shell__page">
+					{editing ? <MappingEditor connection={connection} target={editing} done={() => setEditing(undefined)} />
+						: page === 'dashboard' ? <Dashboard connection={connection} go={go} />
+							: page === 'mappings' ? <Mappings connection={connection} edit={setEditing} />
+								: page === 'downloads' ? <Downloads connection={connection} />
+									: <Settings connection={connection} />}
+				</main>
 			</div>
-		</aside>
+		</div>
 	);
 }
 
@@ -109,38 +170,20 @@ function App() {
 	const connections = useLoad(() => host.listConnections(), [], ['connectionsChanged']);
 	const saved = viewState.get<State>() ?? {};
 	const [connectionId, setConnectionId] = useState(saved.connectionId);
-	const [page, setPage] = useState<Page>(saved.page ?? 'dashboard');
-	const [editing, setEditing] = useState<EditTarget>();
+	const [initialPage, setInitialPage] = useState<Page>(saved.page ?? 'dashboard');
 
-	useEffect(() => viewState.set<State>({ connectionId, page }), [connectionId, page]);
+	useEffect(() => { if (!connectionId) { viewState.set<State>({}); } }, [connectionId]);
 
 	const list = connections.value ?? [];
 	const connection = list.find(c => c.id === connectionId && c.granted);
-	const go = (to: Page | 'new-mapping') => {
-		setEditing(to === 'new-mapping' ? { kind: 'new' } : undefined);
-		setPage(to === 'new-mapping' ? 'mappings' : to);
-	};
 
 	if (!connections.value) {
-		return <div className="dhis2-profile-view"><main className="app-main"><ErrorLine error={connections.error} /></main></div>;
+		return <div className="de-connect"><div className="de-connect__inner"><ErrorLine error={connections.error} /></div></div>;
 	}
-	return (
-		<div className={`de-root${connection ? '' : ' dhis2-login-visible'}`}>
-			<Connections connections={list} choose={c => { setConnectionId(c.id); setEditing(undefined); setPage('dashboard'); }} />
-			<div className="dhis2-profile-view">
-				{connection && <>
-					<Sidebar page={page} go={go} disconnect={() => setConnectionId(undefined)} />
-					<main className="app-main">
-						{editing ? <MappingEditor connection={connection} target={editing} done={() => setEditing(undefined)} />
-							: page === 'dashboard' ? <Dashboard connection={connection} go={go} />
-								: page === 'mappings' ? <Mappings connection={connection} edit={setEditing} />
-									: page === 'downloads' ? <Downloads connection={connection} />
-										: <Settings connection={connection} />}
-					</main>
-				</>}
-			</div>
-		</div>
-	);
+	return connection
+		? <Shell key={connection.id} connection={connection} initialPage={initialPage} disconnect={() => setConnectionId(undefined)} />
+		: <Connections connections={list} choose={c => { setInitialPage('dashboard'); setConnectionId(c.id); }} />;
 }
 
+document.body.classList.add('cd-theme-extractor');
 createRoot(document.getElementById('root')!).render(<App />);

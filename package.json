@@ -30,6 +30,14 @@
         "category": "DHIS2"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "dataExtractor.open",
+          "when": "false"
+        }
+      ]
+    },
     "languageModelTools": [
       {
         "name": "dhis2_getProfiles",
@@ -1028,7 +1036,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit && tsc -p ./src/webview --noEmit",
-    "test": "tsc -p ./tsconfig.test.json && node --test \"out-test/test/**/*.test.js\"",
+    "test": "tsc -p ./tsconfig.test.json && node --require ./out-test/test/setup.js --test \"out-test/test/**/*.test.js\"",
     "vscode:prepublish": "npm run typecheck && npm run build"
   },
   "dependencies": {

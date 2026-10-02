@@ -3,13 +3,18 @@
 	"compilerOptions": {
 		"outDir": "./out-test",
 		"types": [
-			"node"
+			"node",
+			"vscode"
 		]
 	},
 	"include": [
 		"src/shared/**/*",
 		"src/core/**/*",
-		"src/test/**/*"
+		"src/test/**/*",
+		"src/store.ts",
+		"src/migrate.ts",
+		"src/download.ts",
+		"src/vscode.proposed.datasuiteDhis2.d.ts"
 	],
 	"exclude": []
 }

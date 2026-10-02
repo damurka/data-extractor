@@ -20,6 +20,8 @@ declare module 'vscode' {
 		/** Whether the user signed in with a personal access token rather than a password. */
 		readonly usesAccessToken: boolean;
 		readonly country?: string;
+		/** The server's DHIS2 version when signing in, e.g. `2.40.4`. */
+		readonly dhis2Version?: string;
 		/** Whether this extension may read through the connection (see {@link dhis2.requestAccess}). */
 		readonly granted: boolean;
 	}

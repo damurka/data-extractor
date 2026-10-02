@@ -199,6 +199,9 @@ export function chatTools(deps: ToolDeps): ToolDefinition<never>[] {
 				if (c.country) {
 					lines.push(`  - Country: ${c.country}`);
 				}
+				if (c.dhis2Version) {
+					lines.push(`  - DHIS2 version: ${c.dhis2Version}`);
+				}
 				lines.push(`  - Data Extractor access: ${c.granted ? 'given' : 'not yet (the user is asked on first use)'}`);
 			}
 			lines.push(`\nTools use **${sorted[0].displayName}** (\`${sorted[0].id}\`) when no profileId is given.`);

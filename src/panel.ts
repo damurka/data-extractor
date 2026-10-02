@@ -37,10 +37,15 @@ export class ExtractorPanel implements vscode.Disposable {
 		events: vscode.Event<RpcEvent>
 	) {
 		panel.webview.html = this.html(context);
+		// DataSuite's assistant reads its mapping instructions while the extractor is the active editor
+		const setActive = (active: boolean) => void vscode.commands.executeCommand('setContext', 'dhis2ProfileEditorActive', active);
+		setActive(panel.active);
 		this.disposables.push(
 			panel.webview.onDidReceiveMessage(message => this.onMessage(message)),
 			events(event => void panel.webview.postMessage(event)),
-			panel.onDidDispose(() => this.dispose())
+			panel.onDidChangeViewState(e => setActive(e.webviewPanel.active)),
+			panel.onDidDispose(() => this.dispose()),
+			{ dispose: () => setActive(false) }
 		);
 	}
 

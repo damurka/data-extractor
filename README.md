@@ -14,7 +14,18 @@ Through DataSuite's DHIS2 API (`vscode.dhis2`, proposal `datasuiteDhis2`):
 - **Metadata** (data elements, indicators, datasets, organisation units) comes from DataSuite's shared copy of each
   server's metadata (`vscode.dhis2.metadata`).
 - **Downloads** run through DataSuite's analytics download (`vscode.dhis2.downloadAnalytics`), which splits them into
-  requests, retries, and reports progress chunk by chunk.
+  requests, adapts to how the server copes, and reports progress chunk by chunk.
+
+## Chat tools
+
+DataSuite's assistant reaches DHIS2 through this extension's `dhis2_*` tools (search metadata, query analytics, check
+reporting completeness, read and write mappings, start and follow downloads). They answer only inside a chat request,
+so another extension cannot use them to reach DHIS2 through this one; the tools that change something ask first.
+
+## Releasing
+
+`npm version <patch|minor|major>` and push the tag: CI publishes the `.vsix` to the DataSuite registry and makes a
+GitHub release whose notes give the `product.json` pin for DataSuite's `builtInExtensions`.
 
 ## What it keeps
 

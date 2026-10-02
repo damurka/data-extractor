@@ -1,0 +1,92 @@
+/* Data Extractor: the webview's styles, in VS Code's theme colours */
+
+body {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	padding: 0;
+}
+
+main {
+	max-width: 960px;
+	padding: 16px 24px;
+}
+
+header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	margin-bottom: 16px;
+}
+
+h1 {
+	font-size: 1.4em;
+	font-weight: 600;
+}
+
+.actions {
+	display: flex;
+	gap: 8px;
+}
+
+button {
+	font: inherit;
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	padding: 4px 12px;
+	cursor: pointer;
+}
+
+button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+button.secondary {
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+}
+
+button.secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+button.link {
+	color: var(--vscode-textLink-foreground);
+	background: none;
+	border: none;
+	padding: 0 0 0 8px;
+}
+
+button.link:hover {
+	text-decoration: underline;
+}
+
+.muted {
+	color: var(--vscode-descriptionForeground);
+}
+
+.error {
+	color: var(--vscode-errorForeground);
+}
+
+.connections {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	gap: 12px;
+}
+
+.connections li {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	padding: 12px;
+}
+
+.connections .title {
+	font-weight: 600;
+}

@@ -1,0 +1,15 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"outDir": "./out-test",
+		"types": [
+			"node"
+		]
+	},
+	"include": [
+		"src/shared/**/*",
+		"src/core/**/*",
+		"src/test/**/*"
+	],
+	"exclude": []
+}

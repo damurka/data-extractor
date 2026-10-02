@@ -9,8 +9,8 @@ import { ErrorLine, Icon, PageHeader } from '../components';
 import { host, useAction, useLoad } from '../hooks';
 
 const FIELDS: { key: keyof DownloadSettings; label: string; hint: string; min: number; max: number }[] = [
-	{ key: 'maxConcurrentChunks', label: 'Max Concurrent Chunks', hint: 'How many pieces of a download run at once. Higher is faster but harder on a weaker server. Default: 1.', min: 1, max: 6 },
-	{ key: 'maxCellsPerChunk', label: 'Max Cells per Request', hint: 'How much data each individual request asks for. Lower means smaller, more frequent requests. Default: 50000.', min: 1_000, max: 500_000 },
+	{ key: 'maxConcurrentChunks', label: 'Max Concurrent Chunks', hint: 'The most pieces of a download run at once. DataSuite starts with 2 and adds more while the server answers quickly, fewer when it struggles. Lower it for a fragile server. Default: 4.', min: 1, max: 6 },
+	{ key: 'maxCellsPerChunk', label: 'Max Cells per Request', hint: 'How much data each request asks for at first. A request the server finds too big is split automatically. Default: 50000.', min: 1_000, max: 500_000 },
 	{ key: 'retryAttempts', label: 'Retry Attempts', hint: 'How many times a failed request is retried before the download fails. Default: 3.', min: 0, max: 10 },
 	{ key: 'retryBaseDelayMs', label: 'Retry Delay (ms)', hint: 'How long to wait before the first retry; doubles each attempt after that. Default: 2000.', min: 200, max: 60_000 },
 	{ key: 'requestTimeoutMs', label: 'Request Timeout (ms)', hint: 'How long to wait for a single request before giving up on it. Default: 120000.', min: 5_000, max: 600_000 }

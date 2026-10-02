@@ -6,7 +6,9 @@
  *                               draft.json        IAddMappingDraft
  *                               downloads.json    { inProgress: [...], history: [...] }
  *                               settings.json     Dhis2DownloadSettings
- *                               files/<id>.json   a finished download; <id>.partial.<phase>.json a checkpoint
+ *                               files/<id>.json   a finished download; <id>.partial.<part>.ndjson its checkpoint
+ *                                                 (one line per finished chunk; the built-in extractor's .json kind
+ *                                                 still read)
  *                               migrated.json     when the built-in extractor's work was carried over
  *
  *  (The built-in extractor kept the same in one SQLite file per profile; nothing here needs SQL, and JSON files need no
@@ -36,8 +38,8 @@ export interface DownloadsSnapshot {
 	readonly history: HistoryRow[];
 }
 
-/** A download file's name: `<id>.json`, or a checkpoint `<id>.partial.<phase>.json` -- nothing that leaves the folder. */
-const FILE_NAME = /^[A-Za-z0-9_-]+(\.partial\.[a-z]+)?\.json$/;
+/** A download file's name: `<id>.json`, or a checkpoint `<id>.partial.<part>.ndjson` (`.json`) -- nothing that leaves the folder. */
+const FILE_NAME = /^[A-Za-z0-9_-]+(\.partial\.[a-z]+\.(nd)?json|\.json)$/;
 
 export class ExtractorStore implements vscode.Disposable {
 
@@ -180,6 +182,13 @@ export class ExtractorStore implements vscode.Disposable {
 		const file = this.fileOf(connectionId, fileName);
 		await fs.mkdir(path.dirname(file), { recursive: true });
 		await atomicWrite(file, content);
+	}
+
+	/** Adds to the end of a download file (a checkpoint's next chunk), creating it when there is none. */
+	async appendFile(connectionId: string, fileName: string, content: string): Promise<void> {
+		const file = this.fileOf(connectionId, fileName);
+		await fs.mkdir(path.dirname(file), { recursive: true });
+		await fs.appendFile(file, content, 'utf8');
 	}
 
 	readFile(connectionId: string, fileName: string): Promise<string> {

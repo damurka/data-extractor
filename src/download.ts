@@ -3,9 +3,11 @@
  *  downloadAnalytics), which splits it into requests, retries them and reports each one -- and keeping its result.
  *
  *  A Countdown mapping downloads in three parts (population yearly, reporting completeness and services monthly), a
- *  custom one in one. Each part keeps a checkpoint (`<id>.partial.<part>.json`: the rows so far and the chunks they
- *  came from), so a paused download resumes where it stopped -- also one the built-in extractor left unfinished (its
- *  checkpoints say how many chunks were done in order; DataSuite plans the chunks in the same order).
+ *  custom one in one. Each part keeps a checkpoint, `<id>.partial.<part>.ndjson`: one line per finished chunk (its
+ *  index and rows), appended as it finishes -- so keeping it costs the same at the end of a long download as at the
+ *  start, and a crash loses at most the line being written. A paused download resumes where it stopped, also one the
+ *  built-in extractor left unfinished (its `.json` checkpoints say how many chunks were done in order; DataSuite plans
+ *  the chunks in the same order).
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -55,10 +57,16 @@ interface Part {
 	readonly periods: string[];
 }
 
-/** A part's checkpoint: its rows so far and the chunks they came from (the built-in extractor's: how many chunks, in order). */
+/** A part's checkpoint: its rows so far and the chunks they came from. */
 interface Checkpoint {
 	rows: IDhis2AnalyticsRow[];
-	completedChunks: number[] | number;
+	completedChunks: Set<number>;
+}
+
+/** One line of a checkpoint: a finished chunk's index and its rows as [dx, pe, ou, value]. */
+interface CheckpointLine {
+	i: number;
+	r: [string, string, string, number | null][];
 }
 
 export class DownloadRunner {
@@ -130,21 +138,22 @@ export class DownloadRunner {
 
 			const rows: IDhis2AnalyticsRow[] = [];
 			for (const [i, part] of parts.entries()) {
-				const checkpointFile = `${taskId}.partial.${part.name}.json`;
-				const checkpoint = await this.loadCheckpoint(connectionId, checkpointFile);
-				const done = new Set<number>(Array.isArray(checkpoint.completedChunks) ? checkpoint.completedChunks : Array.from({ length: checkpoint.completedChunks }, (_, k) => k));
-				const partRows = checkpoint.rows;
+				const checkpointFile = `${taskId}.partial.${part.name}.ndjson`;
+				const legacyCheckpointFile = `${taskId}.partial.${part.name}.json`;
+				const { rows: partRows, completedChunks: done } = await this.loadCheckpoint(connectionId, checkpointFile, legacyCheckpointFile);
 				let saving = Promise.resolve();
 
 				await vscode.dhis2.downloadAnalytics(connectionId, { dataItems: part.dataItems, periods: part.periods, organisationUnits, skipChunks: [...done], settings }, {
 					keepRows: false,
 					onChunk: chunk => {
+						const line: CheckpointLine = { i: chunk.index, r: [] };
 						for (const r of chunk.rows) {
-							partRows.push({ dx: r.dx, pe: r.pe, ou: r.ou, value: r.value ?? null });
+							const value = r.value ?? null;
+							partRows.push({ dx: r.dx, pe: r.pe, ou: r.ou, value });
+							line.r.push([r.dx, r.pe, r.ou, value]);
 						}
 						done.add(chunk.index);
-						const snapshot: Checkpoint = { rows: partRows, completedChunks: [...done] };
-						saving = saving.then(() => this.store.writeFile(connectionId, checkpointFile, JSON.stringify(snapshot)));
+						saving = saving.then(() => this.store.appendFile(connectionId, checkpointFile, `${JSON.stringify(line)}\n`));
 					},
 					onProgress: p => {
 						const pct = totalChunks ? Math.round(((chunksBefore + p.completedChunks) / totalChunks) * 100) : 0;
@@ -159,7 +168,9 @@ export class DownloadRunner {
 				for (const r of partRows) {
 					rows.push(r);
 				}
+				partRows.length = 0;
 				await this.store.deleteFile(connectionId, checkpointFile);
+				await this.store.deleteFile(connectionId, legacyCheckpointFile);
 			}
 
 			await this.store.upsertInProgress(connectionId, { ...row, progressPct: 100, rightText: 'Processing...', state: 'processing' });
@@ -169,7 +180,7 @@ export class DownloadRunner {
 			const tidy = buildTidyDownloadRows(mapping, rows, orgUnits, calendar);
 
 			const payload: DownloadPayload = { mappingDraft: mapping, orgUnits, data, calendar };
-			const text = JSON.stringify(payload, null, 2);
+			const text = JSON.stringify(payload);
 			await this.store.writeFile(connectionId, file, text);
 			const size = `${(Buffer.byteLength(text) / 1048576).toFixed(2)} MB`;
 			await this.store.finishToHistory(connectionId, { ...row, status: 'Completed', size, date: new Date().toLocaleString() });
@@ -237,12 +248,37 @@ export class DownloadRunner {
 		];
 	}
 
-	private async loadCheckpoint(connectionId: string, fileName: string): Promise<Checkpoint> {
+	/**
+	 * A part's checkpoint: this extension's (one line per chunk; a last line cut short by a crash is left out, its chunk
+	 * fetched again), else the built-in extractor's (`{ rows, completedChunks }`, the chunks done in order), else none.
+	 */
+	private async loadCheckpoint(connectionId: string, fileName: string, legacyFileName: string): Promise<Checkpoint> {
+		const checkpoint: Checkpoint = { rows: [], completedChunks: new Set() };
+		const text = await this.store.readFile(connectionId, fileName).catch(() => undefined);
+		if (text !== undefined) {
+			for (const line of text.split('\n')) {
+				let parsed: CheckpointLine;
+				try {
+					parsed = JSON.parse(line) as CheckpointLine;
+				} catch {
+					continue;
+				}
+				if (typeof parsed?.i !== 'number' || !Array.isArray(parsed.r) || checkpoint.completedChunks.has(parsed.i)) {
+					continue;
+				}
+				checkpoint.completedChunks.add(parsed.i);
+				for (const [dx, pe, ou, value] of parsed.r) {
+					checkpoint.rows.push({ dx, pe, ou, value });
+				}
+			}
+			return checkpoint;
+		}
 		try {
-			const parsed = JSON.parse(await this.store.readFile(connectionId, fileName)) as Partial<Checkpoint>;
-			return { rows: Array.isArray(parsed.rows) ? parsed.rows : [], completedChunks: parsed.completedChunks ?? [] };
+			const legacy = JSON.parse(await this.store.readFile(connectionId, legacyFileName)) as { rows?: IDhis2AnalyticsRow[]; completedChunks?: number };
+			const done = typeof legacy.completedChunks === 'number' ? legacy.completedChunks : 0;
+			return { rows: Array.isArray(legacy.rows) ? legacy.rows : [], completedChunks: new Set(Array.from({ length: done }, (_, k) => k)) };
 		} catch {
-			return { rows: [], completedChunks: [] };
+			return checkpoint;
 		}
 	}
 }

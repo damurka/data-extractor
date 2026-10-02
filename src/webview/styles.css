@@ -67,3 +67,110 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 }
+
+/* ---- Improvements over the built-in extractor's look */
+
+/* The focus ring only for keyboard focus, not after a click (the active page already shows which is open) */
+.dhis2-profile-view .nav-link:focus,
+.dhis2-profile-view button:focus {
+	outline: none;
+}
+
+.dhis2-profile-view .nav-link:focus-visible,
+.dhis2-profile-view button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/* The sources badge in VS Code's own badge colours, readable in every theme */
+.dhis2-profile-view .ic-badge-sources {
+	color: var(--vscode-badge-foreground, #fff);
+	border-color: transparent;
+}
+
+/* The dashboard's recent downloads */
+.dhis2-profile-view .recent-downloads {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--dhis2-border-main);
+	border-radius: 0.75rem;
+	overflow: hidden;
+	background: var(--dhis2-bg-surface);
+}
+
+.dhis2-profile-view .recent-download-row {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 1rem;
+	border-top: 1px solid var(--dhis2-border-main);
+}
+
+.dhis2-profile-view .recent-download-row:first-child {
+	border-top: none;
+}
+
+.dhis2-profile-view .recent-download-row .cell-text-block {
+	flex: 1;
+	min-width: 0;
+}
+
+.dhis2-profile-view .recent-download-meta {
+	color: var(--dhis2-text-muted);
+	font-size: 0.8rem;
+	white-space: nowrap;
+}
+
+.dhis2-profile-view .recent-downloads-empty {
+	padding: 1rem;
+	color: var(--dhis2-text-muted);
+}
+
+.dhis2-profile-view .d2-section-header-row .d2-section-link {
+	background: none;
+	border: none;
+	color: var(--dhis2-text-link);
+	cursor: pointer;
+	font-size: 0.8rem;
+}
+
+/* What a download will fetch, in the New Download dialog */
+.dhis2-profile-view .dl-estimate {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 0.5rem;
+	margin: 0.25rem 0 0.75rem;
+}
+
+.dhis2-profile-view .dl-estimate-cell {
+	padding: 0.5rem 0.625rem;
+	border-radius: 0.5rem;
+	background: var(--dhis2-bg-subtle);
+	border: 1px solid var(--dhis2-border-main);
+}
+
+.dhis2-profile-view .dl-estimate-value {
+	font-weight: 700;
+	font-size: 1rem;
+}
+
+.dhis2-profile-view .dl-estimate-label {
+	color: var(--dhis2-text-muted);
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.dhis2-profile-view .dl-estimate-note {
+	margin: 0 0 0.75rem;
+	font-size: 0.8rem;
+	color: var(--dhis2-text-muted);
+}
+
+.dhis2-profile-view .dl-estimate-note.warning {
+	color: var(--dhis2-brand-warning);
+}
+
+.dhis2-profile-view .dl-level-name {
+	color: var(--dhis2-text-muted);
+}

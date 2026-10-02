@@ -55,8 +55,8 @@ export function Mappings({ connection, edit }: { connection: Connection; edit: (
 			)
 		},
 		{
-			id: 'sync', title: 'Last Sync', width: '15%', render: m => m.indicatorsCount === 0
-				? <div className="mapping-sync-wrap text-error"><Icon name="error" /> Sync Failed</div>
+			id: 'updated', title: 'Last Updated', width: '15%', render: m => m.indicatorsCount === 0
+				? <div className="mapping-sync-wrap text-error" title="Add indicators before downloading with this mapping"><Icon name="warning" /> No indicators</div>
 				: <div className="mapping-sync-wrap text-success"><Icon name="pass" /> {fromNow(m.lastUpdatedAt)}</div>
 		},
 		{

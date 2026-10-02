@@ -68,10 +68,12 @@ declare module 'vscode' {
 		export function planAnalyticsDownload(connectionId: string, request: Dhis2AnalyticsDownloadRequest): Thenable<Dhis2AnalyticsDownloadPlan>;
 
 		/**
-		 * Downloads analytics data: DataSuite splits the request into chunks the server can answer (each at most
-		 * `maxCellsPerChunk` values), runs a few at a time, retries a chunk that fails, and reports each chunk as it
-		 * finishes. Cancel with `token`; resume a download that stopped by passing the chunks already done in
-		 * `skipChunks`. Rejects when a chunk still fails after its retries.
+		 * Downloads analytics data: DataSuite splits the request into chunks (each at most `maxCellsPerChunk` values)
+		 * and adapts to the server -- more requests at once while it answers quickly, fewer when it struggles; a chunk
+		 * the server finds too big (a timeout, DHIS2's "exceeded max limit") split in two and sent again; a passing
+		 * failure (network, 502/503/504, 429) retried after a pause -- and reports each chunk as it finishes. Cancel
+		 * with `token`; resume a download that stopped by passing the chunks already done in `skipChunks`. Rejects at
+		 * once when the server refuses a request (a bad id, no permission), or when a passing failure persists.
 		 */
 		export function downloadAnalytics(connectionId: string, request: Dhis2AnalyticsDownloadRequest, options?: Dhis2AnalyticsDownloadOptions, token?: CancellationToken): Thenable<Dhis2AnalyticsDownloadResult>;
 	}
@@ -89,7 +91,7 @@ declare module 'vscode' {
 
 	/** How a download runs (DataSuite's defaults when not given; each is kept within bounds). */
 	export interface Dhis2DownloadSettings {
-		/** Chunks requested at once: 1 to 6 (default 1). */
+		/** The most chunks requested at once: 1 to 6. DataSuite starts with 2 and grows while the server keeps up (to 4 when not given). */
 		readonly maxConcurrentChunks?: number;
 		/** Values (data items x periods x organisation units) per request (default 50 000). Lower for a weak server. */
 		readonly maxCellsPerChunk?: number;

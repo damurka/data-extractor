@@ -13,7 +13,8 @@ import { ExtractorStore } from './store';
 const K = () => vscode.Dhis2MetadataKind;
 const R = () => vscode.Dhis2MetadataRelation;
 
-export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = { maxConcurrentChunks: 1, maxCellsPerChunk: 50_000, retryAttempts: 3, retryBaseDelayMs: 2000, requestTimeoutMs: 120_000 };
+/** maxConcurrentChunks is the most DataSuite may use: it starts lower and grows while the server keeps up. */
+export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = { maxConcurrentChunks: 4, maxCellsPerChunk: 50_000, retryAttempts: 3, retryBaseDelayMs: 2000, requestTimeoutMs: 120_000 };
 
 export function createHost(store: ExtractorStore, runner: DownloadRunner): ExtractorHost {
 	const str = (v: unknown) => typeof v === 'string' ? v : undefined;
@@ -146,7 +147,7 @@ export function createHost(store: ExtractorStore, runner: DownloadRunner): Extra
 		},
 		deleteDownload: async (connectionId, taskId) => {
 			runner.stop(taskId, 'cancel');
-			for (const name of [`${taskId}.json`, ...['pop', 'completeness', 'service', 'custom'].map(p => `${taskId}.partial.${p}.json`)]) {
+			for (const name of [`${taskId}.json`, ...['pop', 'completeness', 'service', 'custom'].flatMap(p => [`${taskId}.partial.${p}.ndjson`, `${taskId}.partial.${p}.json`])]) {
 				await store.deleteFile(connectionId, name);
 			}
 			await store.removeInProgress(connectionId, taskId);

@@ -24,6 +24,12 @@ export function Downloads({ connection }: { connection: Connection }) {
 	const ethiopic = /^ethiop/i.test(calendar.value ?? '');
 	const [labelCalendar, setLabelCalendar] = useState<'gregorian' | 'ethiopic'>('ethiopic');
 	const downloads = useLoad(() => host.downloads(id, filter, search), [id, filter, search], ['downloadsChanged'], id);
+	const levels = useLoad(() => host.orgUnitLevels(id), [id]);
+	const levelName = (adminLevel: string) => {
+		const n = Number(adminLevel.replace('LEVEL-', ''));
+		const name = levels.value?.find(l => l.level === n)?.name;
+		return <span>Level {n}{name && <span className="dl-level-name"> &middot; {name}</span>}</span>;
+	};
 	const [run, error, , dismiss] = useAction();
 
 	const inProgress = downloads.value?.inProgress ?? [];
@@ -46,7 +52,7 @@ export function Downloads({ connection }: { connection: Connection }) {
 			}
 		},
 		{ id: 'mode', title: 'Mode', width: '10%', render: row => <span>{row.mappingMode === 'custom' ? 'Custom' : 'Countdown'}</span> },
-		{ id: 'level', title: 'Admin', width: '10%', render: row => <span>{row.adminLevel}</span> },
+		{ id: 'level', title: 'Admin', width: '12%', render: row => levelName(row.adminLevel) },
 		{ id: 'size', title: 'Size', width: '10%', render: row => <span>{row.size || '-'}</span> },
 		{ id: 'date', title: 'Date', width: '15%', render: row => <span>{row.date || '-'}</span> },
 		{ id: 'status', title: 'Status', width: '10%', render: row => <span className={`status-pill ${row.status === 'Completed' ? 'success' : 'error'}`}>{row.status}</span> },
@@ -279,11 +285,20 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 				)}
 
 				{dateProblem && <p className="dl-modal-subtitle text-error">{dateProblem}</p>}
-				{estimate && (
-					<p className="dl-modal-subtitle">
-						{estimate.dataItems} data items &times; {estimate.periods} periods ({estimate.firstPeriod} to {estimate.lastPeriod}) &times; {estimate.organisationUnits.toLocaleString()} organisation units: {estimate.requests} request{estimate.requests === 1 ? '' : 's'} to the server.
+				{estimate && <>
+					<div className="dl-estimate">
+						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.dataItems.toLocaleString()}</div><div className="dl-estimate-label">Data items</div></div>
+						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.periods.toLocaleString()}</div><div className="dl-estimate-label">Periods</div></div>
+						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.organisationUnits.toLocaleString()}</div><div className="dl-estimate-label">Org units</div></div>
+						<div className="dl-estimate-cell"><div className="dl-estimate-value">{estimate.requests.toLocaleString()}</div><div className="dl-estimate-label">Requests</div></div>
+					</div>
+					<p className={`dl-estimate-note${estimate.requests > 200 ? ' warning' : ''}`}>
+						{estimate.firstPeriod && <>Periods {estimate.firstPeriod} to {estimate.lastPeriod}. </>}
+						{estimate.requests > 200
+							? 'A large download: it can take a long while. It can be paused and resumed, and DataSuite adapts to the server as it goes.'
+							: 'DataSuite adapts to the server as it goes: more requests at once while it answers quickly, smaller ones if it struggles.'}
 					</p>
-				)}
+				</>}
 
 				<div className="dl-modal-actions">
 					<button type="button" className="btn-cancel-plain" onClick={close}>Cancel</button>

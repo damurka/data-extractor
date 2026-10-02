@@ -18,20 +18,33 @@ export function newIndicator(mode: MappingMode): IIndicatorDraft {
 }
 
 /** Why the mapping cannot be saved yet, or `undefined` when it can. */
+/**
+ * Why the mapping cannot be saved: only a missing name. Incomplete indicators are saved as they are, to finish later;
+ * a download leaves them out (completeIndicators()).
+ */
 export function validationError(draft: IAddMappingDraft): string | undefined {
-	if (!draft.name?.trim()) {
-		return 'Give this mapping a name before saving.';
+	return draft.name?.trim() ? undefined : 'Give this mapping a name before saving.';
+}
+
+/** What an indicator still lacks before a download can use it, in a few words; undefined when it is complete. */
+export function incompleteReason(indicator: IIndicatorDraft): string | undefined {
+	const missing = [
+		!indicator.internalName?.trim() && 'a result name',
+		!indicator.exportCode?.trim() && 'an analysis code',
+		!indicator.sources?.length && 'DHIS2 data'
+	].filter((m): m is string => !!m);
+	if (missing.length) {
+		return `Needs ${missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}`}.`;
 	}
-	for (const indicator of draft.indicators) {
-		if (!indicator.internalName?.trim() || !indicator.exportCode?.trim() || !indicator.sources?.length) {
-			return `"${indicator.internalName?.trim() || 'Untitled Indicator'}" is missing a Result Name, Analysis Code, or DHIS2 Data Mapping.`;
-		}
-		const mismatch = findIndicatorCategoryMismatch(indicator);
-		if (mismatch) {
-			return mismatch;
-		}
-	}
-	return undefined;
+	return findIndicatorCategoryMismatch(indicator) ?? undefined;
+}
+
+/** The mapping with only its complete indicators (what a download fetches), and the names of those left out. */
+export function completeIndicators(draft: IAddMappingDraft): { readonly mapping: IAddMappingDraft; readonly leftOut: readonly string[] } {
+	return {
+		mapping: { ...draft, indicators: draft.indicators.filter(isComplete) },
+		leftOut: draft.indicators.filter(i => !isComplete(i)).map(i => i.internalName?.trim() || i.exportCode?.trim() || 'Untitled indicator')
+	};
 }
 
 /** What a source's chosen category option combos say, in a word or three. */

@@ -11,11 +11,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { findIndicatorCategoryMismatch, getCountdownIndicatorCategory } from './core/countdown';
+import { getCountdownIndicatorCategory } from './core/countdown';
 import { buildDxOperands, buildTidyDownloadRows, ITidyTable } from './core/dataUtils';
 import { Dhis2ExportProcessor } from './core/exportProcessor';
 import { generateDhis2Periods } from './core/periods';
 import { IAddMappingDraft, IDhis2AnalyticsRow, IIndicatorDraft, MappingMode } from './core/types';
+import { completeIndicators } from './shared/mapping';
 import { ExtractorStore } from './store';
 
 export interface DownloadConfig {
@@ -112,15 +113,17 @@ export class DownloadRunner {
 		let progressPct = 0;
 
 		try {
-			const mapping = await this.store.getMapping(connectionId, config.mappingId);
-			if (!mapping) {
+			const saved = await this.store.getMapping(connectionId, config.mappingId);
+			if (!saved) {
 				throw new Error('Mapping not found');
 			}
-			for (const indicator of mapping.indicators) {
-				const mismatch = findIndicatorCategoryMismatch(indicator);
-				if (mismatch) {
-					throw new Error(mismatch);
-				}
+			// incomplete indicators are left out (the New download dialog says which)
+			const { mapping, leftOut } = completeIndicators(saved);
+			if (!mapping.indicators.length) {
+				throw new Error(`None of the indicators of "${saved.name}" is complete yet: finish at least one in the mapping editor.`);
+			}
+			if (leftOut.length) {
+				this.log.info(`Download "${config.mappingName}" leaves out ${leftOut.length} incomplete indicator(s): ${leftOut.join(', ')}`);
 			}
 			const settings = await this.store.readSettings(connectionId);
 
@@ -213,11 +216,12 @@ export class DownloadRunner {
 	 * What a download would fetch, without fetching: its data items, periods, organisation units and requests. `draft`
 	 * is a mapping not saved yet (a chat tool's, before the user confirms); else the saved one is read.
 	 */
-	async estimate(connectionId: string, config: DownloadConfig, draft?: IAddMappingDraft): Promise<{ dataItems: number; periods: number; firstPeriod?: string; lastPeriod?: string; organisationUnits: number; requests: number; calendar?: string }> {
-		const mapping = draft ?? await this.store.getMapping(connectionId, config.mappingId);
-		if (!mapping) {
+	async estimate(connectionId: string, config: DownloadConfig, draft?: IAddMappingDraft): Promise<{ dataItems: number; periods: number; firstPeriod?: string; lastPeriod?: string; organisationUnits: number; requests: number; calendar?: string; leftOut: readonly string[] }> {
+		const saved = draft ?? await this.store.getMapping(connectionId, config.mappingId);
+		if (!saved) {
 			throw new Error('Mapping not found');
 		}
+		const { mapping, leftOut } = completeIndicators(saved);
 		const settings = await this.store.readSettings(connectionId);
 		const calendar = await vscode.dhis2.metadata.getCalendar(connectionId);
 		const organisationUnits = [config.boundaryOrgUnitUid ?? config.adminLevel];
@@ -232,7 +236,8 @@ export class DownloadRunner {
 			lastPeriod: periods[periods.length - 1],
 			organisationUnits: plans[0]?.organisationUnits ?? 0,
 			requests: plans.reduce((n, p) => n + p.totalChunks, 0),
-			calendar
+			calendar,
+			leftOut
 		};
 	}
 

@@ -231,6 +231,13 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 							<div key={label} className="de-estimate__cell"><div className="de-estimate__value">{formatNumber(n)}</div><div className="de-estimate__label">{label}</div></div>
 						))}
 					</div>
+					{!!estimate.leftOut?.length && (
+						<p className="cd-field-hint cd-field-hint--warn de-leftout">
+							{`${estimate.leftOut.length} incomplete indicator${estimate.leftOut.length === 1 ? ' is' : 's are'} left out: `}
+							{estimate.leftOut.slice(0, 6).join(', ')}{estimate.leftOut.length > 6 ? `, and ${estimate.leftOut.length - 6} more` : ''}.
+							{' Finish them in the mapping editor to include them.'}
+						</p>
+					)}
 					<p className={`cd-field-hint${estimate.requests > 200 ? ' cd-field-hint--warn' : ''}`}>
 						{estimate.firstPeriod && <>Periods {estimate.firstPeriod} to {estimate.lastPeriod}. </>}
 						{estimate.requests > 200

@@ -7,7 +7,7 @@ import { CdCheckbox, FieldSelect } from '@quire/components';
 import { useEffect, useRef, useState } from 'react';
 import { findIndicatorCategoryMismatch } from '../../core/countdown';
 import { IAddMappingDraft, IIndicatorDraft, IIndicatorSourceDraft, SourceHit } from '../../shared/api';
-import { availableCountdownIndicators, isComplete, sourcesFor, withCocs } from '../../shared/mapping';
+import { availableCountdownIndicators, incompleteReason, isComplete, sourcesFor, withCocs } from '../../shared/mapping';
 import { Button, Field, Icon, IconButton, SearchInput } from '../components';
 import { host, useAction } from '../hooks';
 
@@ -64,12 +64,13 @@ export function IndicatorCard({ connectionId, draft, indicator, onChange, onTogg
 	const countdownOptions = availableCountdownIndicators(draft, indicator).map(c => ({ key: c.id, text: c.title }));
 
 	return (
-		<div className={`cd-card de-ind ${complete ? 'de-ind--complete' : 'de-ind--incomplete'}${indicator.expanded ? ' de-ind--open' : ''}`}>
+		<div data-indicator={indicator.id} className={`cd-card de-ind ${complete ? 'de-ind--complete' : 'de-ind--incomplete'}${indicator.expanded ? ' de-ind--open' : ''}`}>
 			<div className="de-ind__head" onClick={onToggle} role="button" aria-expanded={!!indicator.expanded}>
 				<Icon name={indicator.expanded ? 'chevron-down' : 'chevron-right'} className="de-ind__chev" />
 				<span className="de-ind__title">{indicator.internalName || 'Untitled indicator'}</span>
 				{indicator.exportCode && <span className="de-code">{indicator.exportCode}</span>}
 				<span className={`de-badge ${complete ? 'de-badge--ok' : 'de-badge--warn'}`}>{complete ? 'Complete' : 'Incomplete'}</span>
+				{!complete && !indicator.expanded && <span className="de-ind__reason">{incompleteReason(indicator)}</span>}
 				<span className="de-ind__count">{sources.length} source{sources.length === 1 ? '' : 's'}</span>
 				<span className="de-row-actions" onClick={e => e.stopPropagation()}>
 					<IconButton icon="copy" title="Copy this indicator" onClick={onClone} />

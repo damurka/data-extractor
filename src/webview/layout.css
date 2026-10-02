@@ -582,3 +582,47 @@
 	font-size: 13px;
 	color: var(--cd-ink-2);
 }
+
+/* ---- Incomplete indicators: marked in the list, counted (not blocking) in the save bar */
+.de-ind__reason {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: 13px;
+	color: var(--cd-muted);
+}
+
+.de-savebar__nav {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: 6px;
+}
+
+.de-savebar__link {
+	padding: 0 4px;
+	font-size: 14px;
+}
+
+.de-savebar__step {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	border: 1px solid var(--cd-border);
+	border-radius: 6px;
+	background: var(--cd-surface);
+	color: var(--cd-muted);
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.de-savebar__step:hover {
+	color: var(--cd-ink);
+	background: var(--cd-surface-2);
+}
+
+.de-leftout {
+	margin: 0;
+}

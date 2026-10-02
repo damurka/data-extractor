@@ -68,6 +68,23 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 	};
 	const complete = draft.indicators.filter(isComplete).length;
 	const total = draft.indicators.length;
+	const incomplete = draft.indicators.filter(i => !isComplete(i));
+	/** Opens the next (or previous) incomplete indicator and brings it into view. */
+	const showIncomplete = (delta: 1 | -1) => {
+		if (!incomplete.length) {
+			return;
+		}
+		const at = incomplete.findIndex(i => i.expanded);
+		const next = incomplete[at < 0 ? (delta > 0 ? 0 : incomplete.length - 1) : (at + delta + incomplete.length) % incomplete.length];
+		change({ ...draft, indicators: expandOnly(next.id) });
+		// the page scrolls, under the app's fixed top bar
+		requestAnimationFrame(() => {
+			const card = document.querySelector(`[data-indicator="${next.id}"]`);
+			if (card) {
+				window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - 84, behavior: 'smooth' });
+			}
+		});
+	};
 	const importJson = () => void run(async () => {
 		const imported = await host.importMappingFile();
 		if (imported) {
@@ -201,10 +218,24 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 				</section>
 			</div>
 			<div className="de-savebar" role="region" aria-label="Save">
-				<span className={`de-savebar__state${problem ? ' de-savebar__state--warn' : total ? '' : ' de-savebar__state--quiet'}`}>
-					<Icon name={problem ? 'triangle-exclamation' : total ? 'circle-check' : 'circle-info'} />
-					{problem ?? (total ? `${complete} of ${total} indicator${total === 1 ? '' : 's'} complete. Ready to save.` : "No indicators yet: add one to map this server's data.")}
-				</span>
+				{problem
+					? <span className="de-savebar__state de-savebar__state--warn"><Icon name="triangle-exclamation" />{problem}</span>
+					: incomplete.length
+						? <span className="de-savebar__state de-savebar__state--quiet" title="Incomplete indicators are saved as they are; a download leaves them out until they are finished.">
+							<Icon name="circle-half-stroke" />
+							{`${incomplete.length} of ${total} indicator${total === 1 ? '' : 's'} incomplete`}
+							<span className="de-savebar__nav">
+								<button type="button" className="cd-button cd-button--link de-savebar__link" onClick={() => showIncomplete(1)}>Show</button>
+								{incomplete.length > 1 && <>
+									<button type="button" className="de-savebar__step" aria-label="Previous incomplete indicator" title="Previous" onClick={() => showIncomplete(-1)}><Icon name="chevron-up" /></button>
+									<button type="button" className="de-savebar__step" aria-label="Next incomplete indicator" title="Next" onClick={() => showIncomplete(1)}><Icon name="chevron-down" /></button>
+								</>}
+							</span>
+						</span>
+						: <span className={`de-savebar__state${total ? '' : ' de-savebar__state--quiet'}`}>
+							<Icon name={total ? 'circle-check' : 'circle-info'} />
+							{total ? `All ${total} indicator${total === 1 ? '' : 's'} complete` : "No indicators yet: add one to map this server's data."}
+						</span>}
 				<Button label="Cancel" icon="xmark" onClick={cancel} />
 				<Button label="Save mapping" icon="floppy-disk" variant="primary" onClick={save} disabled={!!problem || busy} title={problem ?? 'Save mapping'} />
 			</div>

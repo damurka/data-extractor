@@ -92,6 +92,8 @@ export interface DownloadEstimate {
 	readonly organisationUnits: number;
 	readonly requests: number;
 	readonly calendar?: string;
+	/** The mapping's incomplete indicators, which the download leaves out. */
+	readonly leftOut?: readonly string[];
 }
 
 export interface DownloadsSnapshot {

@@ -58,12 +58,32 @@ function fakeApi(onEach: (index: number) => void = () => { }) {
 	return calls;
 }
 
-async function setup() {
+async function setup(withMapping: IAddMappingDraft = mapping) {
 	const store = new ExtractorStore(path.join(root, String(n++)));
-	const { id } = await store.createMapping('c1', mapping);
+	const { id } = await store.createMapping('c1', withMapping);
 	const log = testLog();
 	return { store, mappingId: id, log, runner: new DownloadRunner(store, log as unknown as vscode.LogOutputChannel) };
 }
+
+test('incomplete indicators do not stop a download: they are left out, and the estimate names them', async () => {
+	const unfinished = { id: 'i2', internalName: 'Maternal deaths', exportCode: '', kind: 'custom' as const, sources: [] };
+	const { store, mappingId, runner } = await setup({ ...mapping, indicators: [...mapping.indicators, unfinished] });
+	fakeApi();
+	const estimate = await runner.estimate('c1', config(mappingId));
+	assert.deepEqual(estimate.leftOut, ['Maternal deaths']);
+	assert.equal(estimate.dataItems, 1);
+	const outcome = await runner.run('c1', config(mappingId), 'task6');
+	assert.equal(outcome.status, 'completed', outcome.error);
+	assert.deepEqual((await store.getSnapshot('c1')).history.map(h => h.status), ['Completed']);
+});
+
+test('a mapping with no complete indicator says so instead of downloading nothing', async () => {
+	const { mappingId, runner } = await setup({ ...mapping, indicators: [{ id: 'i9', internalName: '', exportCode: '', kind: 'custom', sources: [] }] });
+	fakeApi();
+	const outcome = await runner.run('c1', config(mappingId), 'task7');
+	assert.equal(outcome.status, 'failed');
+	assert.match(outcome.error ?? '', /None of the indicators .* is complete yet/);
+});
 
 test('a download runs to the end: its file is written, its checkpoint removed, and it is in the history', async () => {
 	const calls = fakeApi();

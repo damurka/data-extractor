@@ -23,7 +23,8 @@ export class ExtractorPanel implements vscode.Disposable {
 			retainContextWhenHidden: true,
 			localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'out'), vscode.Uri.joinPath(context.extensionUri, 'media')]
 		});
-		panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.svg');
+		// The built-in extractor's tab icon (the database codicon), for light and dark themes
+		panel.iconPath = { light: vscode.Uri.joinPath(context.extensionUri, 'media', 'icon-light.svg'), dark: vscode.Uri.joinPath(context.extensionUri, 'media', 'icon-dark.svg') };
 		ExtractorPanel.current = new ExtractorPanel(panel, context, methods, events);
 		return ExtractorPanel.current;
 	}

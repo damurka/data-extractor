@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- The Countdown 2030 logo as the extension's icon (as Countdown Analytics'), and the editor tab's icon follows the
+  light or dark theme.
+
 ## 0.1.0
 
 - The Data Extractor as an extension, on DataSuite's DHIS2 API: connections and credentials stay in DataSuite;

@@ -3,7 +3,8 @@
   "displayName": "Data Extractor",
   "description": "Map indicators and download routine data from DHIS2 to Excel, for the Countdown 2030 analyses or your own.",
   "publisher": "datasuite",
-  "version": "0.1.0",
+  "icon": "media/logo.png",
+  "version": "0.1.1",
   "license": "MIT",
   "repository": {
     "type": "git",

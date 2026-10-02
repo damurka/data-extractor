@@ -6,6 +6,7 @@ import { ChipSelect } from '@quire/components';
 import { useMemo, useState } from 'react';
 import { Connection, IMappingListItem } from '../../shared/api';
 import { Button, Column, DataTable, EmptyState, ErrorLine, Icon, IconButton, PageHeader, SearchInput } from '../components';
+import { formatNumber } from '../locale';
 import { fromNow, host, useAction, useLoad } from '../hooks';
 
 export type EditTarget = { readonly kind: 'new' } | { readonly kind: 'draft' } | { readonly kind: 'edit'; readonly mappingId: string } | { readonly kind: 'clone'; readonly mappingId: string };
@@ -56,7 +57,7 @@ export function Mappings({ connection, edit }: { connection: Connection; edit: (
 			)
 		},
 		{ id: 'type', title: 'Type', width: '14%', render: m => <span className={`de-badge ${m.mode === 'countdown' ? 'de-badge--accent' : 'de-badge--info'}`}>{m.mode === 'countdown' ? 'Countdown' : 'Custom'}</span> },
-		{ id: 'indicators', title: 'Indicators', width: '14%', align: 'right', render: m => <span className="de-num">{m.indicatorsCount.toLocaleString()}</span> },
+		{ id: 'indicators', title: 'Indicators', width: '14%', align: 'right', render: m => <span className="de-num">{formatNumber(m.indicatorsCount)}</span> },
 		{
 			id: 'updated', title: 'Last updated', width: '16%', render: m => m.indicatorsCount === 0
 				? <span className="de-state de-state--warn" title="Add indicators before downloading with this mapping"><Icon name="triangle-exclamation" />No indicators</span>

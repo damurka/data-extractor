@@ -7,7 +7,7 @@ import { CdTextArea, FieldSelect } from '@quire/components';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Connection, IAddMappingDraft, IIndicatorDraft, MappingMode } from '../../shared/api';
 import { emptyDraft, isComplete, newIndicator, validationError } from '../../shared/mapping';
-import { Button, Card, EmptyState, ErrorLine, Field, PageHeader } from '../components';
+import { Button, Card, ErrorLine, Field, Icon, PageHeader, SectionHeader } from '../components';
 import { host, useAction } from '../hooks';
 import { IndicatorCard } from './IndicatorCard';
 import { EditTarget } from './Mappings';
@@ -67,6 +67,18 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 		change({ ...draft, indicators: [...expandOnly(undefined), indicator] });
 	};
 	const complete = draft.indicators.filter(isComplete).length;
+	const total = draft.indicators.length;
+	const importJson = () => void run(async () => {
+		const imported = await host.importMappingFile();
+		if (imported) {
+			change({ ...imported, name: imported.name || draft.name, indicators: imported.indicators.map((i, n) => ({ ...i, expanded: n === 0 })) });
+		}
+	});
+	const clearAll = () => void run(async () => {
+		if (await host.confirm('Clear all indicators?', 'Every indicator of this mapping is removed.', 'Clear All')) {
+			change({ ...draft, indicators: [] });
+		}
+	});
 
 	const save = () => void run(async () => {
 		clearTimeout(saveTimer.current);
@@ -105,12 +117,27 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 				eyebrow: editingId ? `ID ${editingId}` : 'New mapping',
 				title: draft.name || 'New Mapping',
 				badge: editingId ? { text: 'Editing', tone: 'editing' } : { text: 'Draft', tone: 'draft' },
-				subtitle: `${draft.indicators.length} indicator${draft.indicators.length === 1 ? '' : 's'}, ${complete} complete.${editingId ? '' : ' The draft is kept as you go.'}`,
-				actions: [
-					{ label: 'Cancel', icon: 'xmark', variant: 'secondary', onClick: cancel },
-					{ label: 'Save mapping', icon: 'floppy-disk', onClick: save, disabled: !!problem || busy, title: problem ?? 'Save Mapping' }
-				]
+				subtitle: editingId ? 'Changes are kept when you save.' : 'A new mapping is kept as a draft as you write it, until you save it.'
 			}} />
+			<div className="de-summary" role="list">
+				<div className="de-summary__item" role="listitem">
+					<span className="de-summary__label">Indicators</span>
+					<span className="de-summary__value">{total}</span>
+				</div>
+				<div className="de-summary__item" role="listitem">
+					<span className="de-summary__label">Complete</span>
+					<span className="de-summary__value">{complete}<span className="de-summary__of"> / {total}</span></span>
+					<span className="de-summary__bar"><span style={{ width: `${total ? Math.round(complete / total * 100) : 0}%` }} /></span>
+				</div>
+				<div className={`de-summary__item${total - complete ? ' de-summary__item--warn' : ''}`} role="listitem">
+					<span className="de-summary__label">To finish</span>
+					<span className="de-summary__value">{total - complete}</span>
+				</div>
+				<div className="de-summary__item" role="listitem">
+					<span className="de-summary__label">Indicators are</span>
+					<span className="de-summary__value de-summary__value--text">{draft.mode === 'countdown' ? 'Countdown 2030' : 'Custom'}</span>
+				</div>
+			</div>
 			<ErrorLine error={error ?? cardError} onDismiss={() => { dismiss(); setCardError(undefined); }} />
 			<div className="de-editor">
 				<aside className="de-editor__side">
@@ -123,31 +150,26 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 							<FieldSelect label="Indicators" hint="Countdown's are the ones the Countdown analysis uses; custom ones are your own." options={MODE_OPTIONS} value={draft.mode} onChange={changeMode} />
 						</div>
 					</Card>
-					{problem && <p className="cd-field-hint cd-field-hint--warn de-editor__problem">{problem}</p>}
 				</aside>
 				<section className="de-editor__main">
-					<div className="de-editor__head">
-						<div>
-							<h2 className="de-section de-section--flush">Indicators</h2>
-							<p className="de-muted">Each indicator sums the DHIS2 sources it is given, with the disaggregations chosen for each.</p>
+					<SectionHeader title="Indicators" count={total} description="Each indicator sums the DHIS2 sources it is given, with the disaggregations chosen for each.">
+						{total > 0 && <Button label="Clear all" icon="eraser" size="sm" className="de-btn-danger-quiet" onClick={clearAll} />}
+						{total > 0 && <span className="de-section-header__sep" aria-hidden="true" />}
+						{total > 0 && <Button label="Import JSON" icon="file-import" size="sm" onClick={importJson} />}
+						{total > 0 && <Button label="Add indicator" icon="plus" variant="primary" size="sm" onClick={addIndicator} />}
+					</SectionHeader>
+					{total === 0 && (
+						<div className="cd-card de-start">
+							<span className="de-start__icon"><Icon name="diagram-project" /></span>
+							<h3 className="de-start__title">Add the first indicator</h3>
+							<p className="de-start__text">{draft.mode === 'countdown'
+								? 'Pick a Countdown 2030 indicator, then the DHIS2 data elements this server records it in. Add them one by one; each is checked as you go.'
+								: 'Name an indicator, give it an analysis code, then pick the DHIS2 data it sums and the disaggregations to keep.'}</p>
+							<div className="de-start__actions">
+								<Button label="Add indicator" icon="plus" variant="primary" onClick={addIndicator} />
+								<Button label="Import a mapping file" icon="file-import" onClick={importJson} />
+							</div>
 						</div>
-						<div className="de-row-actions">
-							<Button label="Import JSON" icon="file-import" size="sm" onClick={() => void run(async () => {
-								const imported = await host.importMappingFile();
-								if (imported) {
-									change({ ...imported, name: imported.name || draft.name, indicators: imported.indicators.map((i, n) => ({ ...i, expanded: n === 0 })) });
-								}
-							})} />
-							{draft.indicators.length > 0 && <Button label="Clear all" icon="eraser" size="sm" onClick={() => void run(async () => {
-								if (await host.confirm('Clear all indicators?', 'Every indicator of this mapping is removed.', 'Clear All')) {
-									change({ ...draft, indicators: [] });
-								}
-							})} />}
-							<Button label="Add indicator" icon="plus" variant="primary" size="sm" onClick={addIndicator} />
-						</div>
-					</div>
-					{draft.indicators.length === 0 && (
-						<div className="cd-card"><EmptyState title="No indicators yet" message={draft.mode === 'countdown' ? 'Add the Countdown indicators this server has data for, one by one.' : 'Add an indicator, name it, and pick the DHIS2 data it sums.'} actionLabel="Add indicator" onAction={addIndicator} /></div>
 					)}
 					<div className="de-stack">
 						{draft.indicators.map(indicator => (
@@ -175,8 +197,16 @@ export function MappingEditor({ connection, target, done }: { connection: Connec
 							/>
 						))}
 					</div>
-					{draft.indicators.length > 0 && <button type="button" className="de-add" onClick={addIndicator}><span className="de-add__plus">+</span>Add another indicator</button>}
+					{total > 0 && <button type="button" className="de-add" onClick={addIndicator}><span className="de-add__plus">+</span>Add another indicator</button>}
 				</section>
+			</div>
+			<div className="de-savebar" role="region" aria-label="Save">
+				<span className={`de-savebar__state${problem ? ' de-savebar__state--warn' : total ? '' : ' de-savebar__state--quiet'}`}>
+					<Icon name={problem ? 'triangle-exclamation' : total ? 'circle-check' : 'circle-info'} />
+					{problem ?? (total ? `${complete} of ${total} indicator${total === 1 ? '' : 's'} complete. Ready to save.` : "No indicators yet: add one to map this server's data.")}
+				</span>
+				<Button label="Cancel" icon="xmark" onClick={cancel} />
+				<Button label="Save mapping" icon="floppy-disk" variant="primary" onClick={save} disabled={!!problem || busy} title={problem ?? 'Save mapping'} />
 			</div>
 		</>
 	);

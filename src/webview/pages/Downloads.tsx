@@ -3,10 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FieldSelect } from '@quire/components';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Connection, DownloadEstimate, DownloadRequest, DownloadsFilter, IDhis2DownloadHistoryRow, IDhis2DownloadInProgressItem, OrgUnitHit } from '../../shared/api';
-import { CalendarRangePicker } from '../calendar/calendarRangePicker';
-import { Button, Card, Column, DataTable, Dialog, EmptyState, ErrorLine, Field, Icon, IconButton, PageHeader, SearchInput, Segmented } from '../components';
+import { DateRangeCalendar } from '../calendar/DateRangeCalendar';
+import { Button, Card, Column, DataTable, Dialog, EmptyState, ErrorLine, Field, Icon, IconButton, OpenInApp, PageHeader, SearchInput, SectionHeader, Segmented } from '../components';
+import { formatNumber } from '../locale';
 import { host, useAction, useLoad } from '../hooks';
 
 const requestOf = (row: IDhis2DownloadHistoryRow | IDhis2DownloadInProgressItem): DownloadRequest => ({
@@ -38,11 +39,13 @@ export function Downloads({ connection }: { connection: Connection }) {
 
 	const inProgress = downloads.value?.inProgress ?? [];
 	const history = downloads.value?.history ?? [];
-	const exportAs = (row: IDhis2DownloadHistoryRow, format: 'EXCEL' | 'JSON') => void run(() => host.exportDownload(id, row.id, format, ethiopic ? labelCalendar : 'gregorian'));
+	const labels = ethiopic ? labelCalendar : 'gregorian';
+	const exportAs = (row: IDhis2DownloadHistoryRow, format: 'EXCEL' | 'JSON') => void run(() => host.exportDownload(id, row.id, format, labels));
+	const openInApp = (row: IDhis2DownloadHistoryRow, app: 'rmncah' | 'vaxx') => void run(() => host.openDownloadInApp(id, row.id, app, labels));
 
 	const columns: Column<IDhis2DownloadHistoryRow>[] = [
 		{
-			id: 'details', title: 'Download', width: '34%', render: row => {
+			id: 'details', title: 'Download', width: '30%', render: row => {
 				const ok = row.status === 'Completed';
 				return (
 					<div className="de-name">
@@ -56,12 +59,13 @@ export function Downloads({ connection }: { connection: Connection }) {
 			}
 		},
 		{ id: 'mode', title: 'Type', width: '11%', render: row => <span className={`de-badge ${row.mappingMode === 'custom' ? 'de-badge--info' : 'de-badge--accent'}`}>{row.mappingMode === 'custom' ? 'Custom' : 'Countdown'}</span> },
-		{ id: 'level', title: 'Admin level', width: '15%', render: row => levelName(row.adminLevel) },
+		{ id: 'level', title: 'Admin level', width: '13%', render: row => levelName(row.adminLevel) },
 		{ id: 'size', title: 'Size', width: '9%', align: 'right', render: row => <span className="de-num">{row.size || '-'}</span> },
-		{ id: 'date', title: 'Finished', width: '15%', render: row => <span className="de-muted">{row.date || '-'}</span> },
+		{ id: 'date', title: 'Finished', width: '12%', render: row => <span className="de-muted">{row.date || '-'}</span> },
 		{
-			id: 'actions', title: '', width: '16%', align: 'right', render: row => (
+			id: 'actions', title: '', width: '22%', align: 'right', render: row => (
 				<div className="de-row-actions">
+					{row.status === 'Completed' && row.mappingMode === 'countdown' && <OpenInApp onOpen={app => openInApp(row, app)} />}
 					{row.status === 'Completed' ? <>
 						<IconButton icon="file-excel" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')} />
 						<IconButton icon="file-code" title="Export to JSON" onClick={() => exportAs(row, 'JSON')} />
@@ -84,7 +88,7 @@ export function Downloads({ connection }: { connection: Connection }) {
 			}} />
 			<ErrorLine error={error ?? downloads.error} onDismiss={dismiss} />
 
-			<h2 className="de-section">In progress</h2>
+			<SectionHeader title="In progress" count={inProgress.length || undefined} description="Downloads running or paused. A paused one picks up where it stopped." />
 			{inProgress.length === 0
 				? <div className="cd-card de-quiet">No download is running.</div>
 				: <div className="de-grid-2">
@@ -94,15 +98,14 @@ export function Downloads({ connection }: { connection: Connection }) {
 						cancel={() => void run(async () => { if (await host.confirm('Cancel download?', `"${item.mappingName}" stops and moves to the history as failed.`, 'Cancel Download')) { await host.cancelDownload(id, item.id); } })} />)}
 				</div>}
 
-			<div className="de-section-row">
-				<h2 className="de-section">History</h2>
+			<SectionHeader title="History" description="Finished downloads: export them to Excel or JSON, or open a Countdown one in its analysis app.">
 				{ethiopic && (
 					<span className="de-inline">
 						<span className="de-muted">Excel labels</span>
 						<Segmented label="Excel labels" value={labelCalendar} onChange={setLabelCalendar} options={[{ value: 'ethiopic', label: 'Ethiopic' }, { value: 'gregorian', label: 'Gregorian' }]} />
 					</span>
 				)}
-			</div>
+			</SectionHeader>
 			<div className="de-toolbar">
 				<SearchInput value={search} placeholder="Search downloads" onChange={v => { setSearch(v); setPage(0); }} />
 				<Segmented label="Show" value={filter} onChange={f => { setFilter(f); setPage(0); }} options={FILTERS} />
@@ -150,28 +153,12 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 	const [boundaryHits, setBoundaryHits] = useState<OrgUnitHit[]>();
 	const [estimate, setEstimate] = useState<DownloadEstimate>();
 	const [run, error, busy, dismiss] = useAction();
-	const pickerHost = useRef<HTMLDivElement>(null);
 
 	const mapping = mappings.value?.find(m => m.id === mappingId);
 	const levelInfo = levels.value?.find(l => l.level === level);
 	useEffect(() => { if (!mappingId && mappings.value?.length) { setMappingId(mappings.value[0].id); } }, [mappings.value, mappingId]);
 	useEffect(() => { if (!level && levels.value?.length) { setLevel(levels.value[0].level); } }, [levels.value, level]);
 
-	// The picker is DataSuite's own widget (plain DOM), mounted once
-	useEffect(() => {
-		if (!pickerHost.current) {
-			return;
-		}
-		const picker = new CalendarRangePicker(pickerHost.current, {
-			mode: ethiopic ? 'ethiopic' : 'gregorian',
-			startDate: range.start,
-			endDate: range.end,
-			allowToggle: true,
-			onRangeChange: r => setRange({ start: r.start, end: r.end })
-		});
-		return () => { picker.dispose(); pickerHost.current?.replaceChildren(); };
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [ethiopic]);
 
 	const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 	const request = useMemo<DownloadRequest | undefined>(() => mappingId && level ? {
@@ -207,7 +194,7 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 			<div className="de-fields">
 				<FieldSelect label="Mapping" options={mappings.value?.length ? mappings.value.map(m => ({ key: m.id, text: m.name })) : [{ key: '', text: 'No mappings yet' }]} value={mappingId} onChange={setMappingId} />
 				<Field label="Periods" hint={ethiopic ? 'This server uses the Ethiopian calendar.' : undefined}>
-					<div className="de-calendar" ref={pickerHost} />
+					<DateRangeCalendar value={range} onChange={setRange} system={ethiopic ? 'ethiopic' : 'gregorian'} allowToggle />
 				</Field>
 				<div className="de-grid-2">
 					{mapping?.mode === 'custom' && (
@@ -241,7 +228,7 @@ function NewDownload({ connection, ethiopic, close }: { connection: Connection; 
 				{estimate && <>
 					<div className="de-estimate">
 						{([[estimate.dataItems, 'Data items'], [estimate.periods, 'Periods'], [estimate.organisationUnits, 'Org units'], [estimate.requests, 'Requests']] as const).map(([n, label]) => (
-							<div key={label} className="de-estimate__cell"><div className="de-estimate__value">{n.toLocaleString()}</div><div className="de-estimate__label">{label}</div></div>
+							<div key={label} className="de-estimate__cell"><div className="de-estimate__value">{formatNumber(n)}</div><div className="de-estimate__label">{label}</div></div>
 						))}
 					</div>
 					<p className={`cd-field-hint${estimate.requests > 200 ? ' cd-field-hint--warn' : ''}`}>

@@ -7,8 +7,6 @@
 @import '@fortawesome/fontawesome-free/css/fontawesome.min.css';
 @import '@fortawesome/fontawesome-free/css/solid.min.css';
 @import '@fortawesome/fontawesome-free/css/regular.min.css';
-/* the calendar range picker (DataSuite's widget) draws its arrows with codicons */
-@import '@vscode/codicons/dist/codicon.css';
 
 /* ---- The extractor's accent: an app theme, as the apps' cd-theme-vaccine and cd-theme-pooled are (cd-ui.css) */
 body.cd-theme-extractor {
@@ -54,23 +52,6 @@ body.vscode-dark .cd-input::placeholder,
 body.vscode-dark .cd-field-input::placeholder,
 body.vscode-dark .cd-search input::placeholder {
 	color: var(--vscode-input-placeholderForeground);
-}
-
-/* The calendar picker in the apps' colours */
-.de-calendar {
-	--vscode-button-background: var(--cd-primary);
-	--vscode-button-hoverBackground: var(--cd-primary-hover);
-	--vscode-button-foreground: #fff;
-	--vscode-button-secondaryBackground: var(--cd-surface-2);
-	--vscode-button-secondaryForeground: var(--cd-ink);
-	--vscode-foreground: var(--cd-ink);
-	--vscode-descriptionForeground: var(--cd-muted);
-	--vscode-editor-background: var(--cd-surface);
-	--vscode-sideBar-background: var(--cd-surface);
-	--vscode-panel-border: var(--cd-border);
-	--vscode-list-hoverBackground: var(--cd-surface-2);
-	--vscode-textLink-foreground: var(--cd-primary-ink);
-	--vscode-focusBorder: var(--cd-primary);
 }
 
 /* ---- Layout of the pages */

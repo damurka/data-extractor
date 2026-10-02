@@ -3,7 +3,7 @@
 //
 //   npm run build && node scripts/harness.mjs      then open out-harness/index.html?theme=dark&page=mappings
 //
-// ?theme=light|dark, ?page=connect|dashboard|mappings|downloads|settings
+// ?theme=light|dark, ?page=connect|dashboard|mappings|downloads|settings, ?lang=en|fr|pt
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -41,6 +41,8 @@ const params = new URLSearchParams(location.search);
 const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
 document.getElementById('vscode-theme').textContent = ':root{' + Object.entries(THEMES[theme]).map(([k, v]) => '--vscode-' + k + ':' + v).join(';') + '}';
 const page = params.get('page') || 'dashboard';
+// ?lang=fr: DataSuite's display language (the panel's <html lang>), which dates follow
+document.documentElement.lang = params.get('lang') || 'en';
 
 const day = 86400000, now = Date.now();
 const connections = [
@@ -88,7 +90,9 @@ const answers = {
 	estimateDownload: () => ({ dataItems: 64, periods: 9, firstPeriod: '202501', lastPeriod: '202509', organisationUnits: 14000, requests: 162 }),
 	searchSources: () => ({ dataElements: [{ uid: 'Ac7Wvh4fJ1v', name: 'MOH 711 ANC 1st visit', type: 'Data Element' }, { uid: 'Zx1', name: 'MOH 711 ANC 4th visit', type: 'Data Element' }], indicators: [{ uid: 'In1', name: 'ANC 1st visit coverage', type: 'Indicator', elementCount: 2 }], dataSets: [{ uid: 'Ds1', name: 'MOH 711 Integrated summary', type: 'DataSet' }] }),
 	searchOrgUnits: () => [{ uid: 'ou1', name: 'Nairobi County', level: 2, pathNames: 'Kenya / Nairobi County' }],
-	confirm: () => true
+	confirm: () => true,
+	openDownloadInApp: (_c, taskId, app) => { console.log('openDownloadInApp', taskId, app); return true; },
+	importMappingFile: () => undefined
 };
 
 window.acquireVsCodeApi = () => ({

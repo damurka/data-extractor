@@ -183,7 +183,7 @@ export class DownloadRunner {
 			const text = JSON.stringify(payload);
 			await this.store.writeFile(connectionId, file, text);
 			const size = `${(Buffer.byteLength(text) / 1048576).toFixed(2)} MB`;
-			await this.store.finishToHistory(connectionId, { ...row, status: 'Completed', size, date: new Date().toLocaleString() });
+			await this.store.finishToHistory(connectionId, { ...row, status: 'Completed', size, date: new Date().toLocaleString(vscode.env?.language || 'en') });
 			this.log.info(`Download "${config.mappingName}" (${subtitle}) completed: ${rows.length} values, ${size}`);
 			return { taskId, status: 'completed', tidy, size };
 
@@ -195,7 +195,7 @@ export class DownloadRunner {
 				return { taskId, status: 'paused' };
 			}
 			const cancelled = run.stop === 'cancel';
-			await this.store.finishToHistory(connectionId, { ...row, status: 'Failed', size: '-', date: new Date().toLocaleString() });
+			await this.store.finishToHistory(connectionId, { ...row, status: 'Failed', size: '-', date: new Date().toLocaleString(vscode.env?.language || 'en') });
 			if (cancelled) {
 				this.log.info(`Download "${config.mappingName}" cancelled`);
 				return { taskId, status: 'cancelled', error: 'Download cancelled' };

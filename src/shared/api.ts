@@ -144,6 +144,8 @@ export interface ExtractorHost {
 	cancelDownload(connectionId: string, taskId: string): Promise<void>;
 	deleteDownload(connectionId: string, taskId: string): Promise<void>;
 	exportDownload(connectionId: string, taskId: string, format: 'EXCEL' | 'JSON', labelCalendar: 'gregorian' | 'ethiopic'): Promise<boolean>;
+	/** Opens a Countdown download in the RMNCAH or Vaccination app (Countdown Analytics); `true` once the app opened it. */
+	openDownloadInApp(connectionId: string, taskId: string, app: 'rmncah' | 'vaxx', labelCalendar: 'gregorian' | 'ethiopic'): Promise<boolean>;
 
 	// settings
 	downloadSettings(connectionId: string): Promise<DownloadSettings>;

@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CdButton, EmptyState as CdEmptyState, IconSearch, StatusBanner } from '@quire/components';
-import { ReactNode, useId } from 'react';
+import { ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { useComponentEvent } from './host';
 
 /** A Font Awesome icon's classes, as the apps' components take them: `fa('plus')` is "fa-solid fa-plus". */
@@ -250,5 +250,56 @@ export function Dialog({ title, children, footer, onClose, size = 'md' }: { titl
 				<div className="cd-dialog__footer">{footer}</div>
 			</div>
 		</div>
+	);
+}
+
+/**
+ * A section's heading row, as every page lays them out: the title (and what it is) on the left, its actions on the
+ * right -- the primary one last, a destructive one set apart.
+ */
+export function SectionHeader({ title, description, children, count }: { title: string; description?: string; children?: ReactNode; count?: ReactNode }) {
+	return (
+		<div className="de-section-header">
+			<div className="de-section-header__text">
+				<h2 className="de-section de-section--flush">{title}{count !== undefined && <span className="de-section__count">{count}</span>}</h2>
+				{description && <p className="de-muted">{description}</p>}
+			</div>
+			{children && <div className="de-section-header__actions">{children}</div>}
+		</div>
+	);
+}
+
+/** "Open in app": a finished Countdown download, as the Countdown analysis apps' workbook, opened in RMNCAH or Vaccination. */
+export function OpenInApp({ onOpen, compact }: { onOpen(app: 'rmncah' | 'vaxx'): void; compact?: boolean }) {
+	const [open, setOpen] = useState(false);
+	const root = useRef<HTMLSpanElement>(null);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onDown = (e: MouseEvent) => { if (root.current && !root.current.contains(e.target as Node)) { setOpen(false); } };
+		const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); } };
+		document.addEventListener('mousedown', onDown);
+		document.addEventListener('keydown', onKey);
+		return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+	}, [open]);
+	const pick = (app: 'rmncah' | 'vaxx') => { setOpen(false); onOpen(app); };
+	return (
+		<span className="de-menu" ref={root}>
+			<button type="button" className={`cd-button cd-button--sm de-open-app${compact ? ' de-open-app--compact' : ''}`} aria-haspopup="menu" aria-expanded={open}
+				title="Load this download into a Countdown analysis app" onClick={() => setOpen(!open)}>
+				<Icon name="chart-column" /><span className="cd-button__label">Open in app</span><Icon name="caret-down" className="de-open-app__caret" />
+			</button>
+			{open && (
+				<span className="de-menu__list" role="menu">
+					<button type="button" role="menuitem" className="de-menu__item" onClick={() => pick('rmncah')}>
+						<span className="de-menu__title">RMNCAH</span><span className="de-menu__sub">Maternal, newborn and child health analysis</span>
+					</button>
+					<button type="button" role="menuitem" className="de-menu__item" onClick={() => pick('vaxx')}>
+						<span className="de-menu__title">Vaccination</span><span className="de-menu__sub">Immunisation coverage analysis</span>
+					</button>
+				</span>
+			)}
+		</span>
 	);
 }

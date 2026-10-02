@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { IAddMappingDraft, ICategoryOptionCombo } from './core/types';
 import { DownloadRunner } from './download';
-import { exportDownload } from './exporter';
+import { exportDownload, openDownloadInApp } from './exporter';
 import { Connection, DownloadRequest, DownloadSettings, ExtractorHost, ResolvedElement, SourceHit } from './shared/api';
 import { ExtractorStore } from './store';
 
@@ -142,7 +142,7 @@ export function createHost(store: ExtractorStore, runner: DownloadRunner): Extra
 			}
 			const item = (await store.getSnapshot(connectionId, 'active')).inProgress.find(i => i.id === taskId);
 			if (item) {
-				await store.finishToHistory(connectionId, { ...item, status: 'Failed', size: '-', date: new Date().toLocaleString() });
+				await store.finishToHistory(connectionId, { ...item, status: 'Failed', size: '-', date: new Date().toLocaleString(vscode.env?.language || 'en') });
 			}
 		},
 		deleteDownload: async (connectionId, taskId) => {
@@ -159,6 +159,17 @@ export function createHost(store: ExtractorStore, runner: DownloadRunner): Extra
 				throw new Error('That download is not among the completed ones.');
 			}
 			return (await exportDownload(store, connectionId, row, format, labelCalendar)) !== undefined;
+		},
+		openDownloadInApp: async (connectionId, taskId, app, labelCalendar) => {
+			const row = (await store.getSnapshot(connectionId, 'completed')).history.find(h => h.id === taskId);
+			if (!row) {
+				throw new Error('That download is not among the completed ones.');
+			}
+			if (row.mappingMode !== 'countdown') {
+				throw new Error('Only a download made with a Countdown mapping opens in the Countdown apps: its workbook has the sheets they read.');
+			}
+			const connection = (await vscode.dhis2.getConnections()).find(c => c.id === connectionId);
+			return openDownloadInApp(store, connectionId, connection?.serverUrl ?? '', row, app, labelCalendar);
 		},
 
 		// ---- settings

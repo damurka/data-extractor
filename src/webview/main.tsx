@@ -19,6 +19,7 @@ import { MappingEditor } from './pages/MappingEditor';
 import { EditTarget, Mappings } from './pages/Mappings';
 import { Settings } from './pages/Settings';
 import './styles.css';
+import './layout.css';
 
 type Page = 'dashboard' | 'mappings' | 'downloads' | 'settings';
 const PAGES: readonly Page[] = ['dashboard', 'mappings', 'downloads', 'settings'];
@@ -41,6 +42,9 @@ const SECTIONS: NavSection[] = [
 		items: [{ key: 'settings', tabName: 'settings', label: 'Download settings', icon: fa('sliders') }]
 	}
 ];
+
+/** The breadcrumb's sections: every page under "Data Extractor" (the sidebar's sections are only how it groups them). */
+const CRUMBS: NavSection[] = [{ label: 'Data Extractor', items: SECTIONS.flatMap(section => section.items) }];
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
 
@@ -135,22 +139,20 @@ function Shell({ connection, initialPage, disconnect }: { connection: Connection
 			<header className="cd-shell__header">
 				<Brand sub={hostOf(connection.serverUrl)} />
 				<nav className="cd-navbar" aria-label="Data Extractor">
-					<span className="cd-header-crumb"><HeaderBreadcrumb sections={SECTIONS} /></span>
-					<span className="cd-header-pill-slot">
-						<span className="cd-dataset-pill" title={`${connection.username} @ ${connection.serverUrl}`}>
+					<span className="cd-header-crumb"><HeaderBreadcrumb sections={CRUMBS} /></span>
+					<span className="cd-header-right de-header-right">
+						<span className="cd-dataset-pill de-connection-pill" title={`Connected to ${connection.serverUrl} as ${connection.username}`}>
 							<span className="cd-dataset-pill__dot" />
 							<span className="cd-dataset-pill__country">{connection.country || connection.displayName}</span>
 							<span className="cd-dataset-pill__file">{connection.username}</span>
 						</span>
-					</span>
-					<span className="cd-header-right">
 						<button type="button" className="cd-hdr-btn cd-hdr-btn--outline" onClick={disconnect} title="Choose another connection">
 							<Icon name="right-from-bracket" /><span className="cd-hdr-btn__label">Disconnect</span>
 						</button>
 					</span>
 				</nav>
 			</header>
-			<aside className="cd-shell__sidebar">
+			<aside className="cd-shell__sidebar de-sidebar">
 				<Sidebar sections={SECTIONS} initialTab={initialPage} docsLabel="Help" docsHref={DOCS} />
 			</aside>
 			<div className="cd-shell__content">

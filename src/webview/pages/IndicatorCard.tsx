@@ -64,7 +64,7 @@ export function IndicatorCard({ connectionId, draft, indicator, onChange, onTogg
 	const countdownOptions = availableCountdownIndicators(draft, indicator).map(c => ({ key: c.id, text: c.title }));
 
 	return (
-		<div className={`cd-card de-ind${indicator.expanded ? ' de-ind--open' : ''}`}>
+		<div className={`cd-card de-ind ${complete ? 'de-ind--complete' : 'de-ind--incomplete'}${indicator.expanded ? ' de-ind--open' : ''}`}>
 			<div className="de-ind__head" onClick={onToggle} role="button" aria-expanded={!!indicator.expanded}>
 				<Icon name={indicator.expanded ? 'chevron-down' : 'chevron-right'} className="de-ind__chev" />
 				<span className="de-ind__title">{indicator.internalName || 'Untitled indicator'}</span>

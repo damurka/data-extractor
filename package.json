@@ -1031,7 +1031,17 @@
         },
         "when": "dataExtractor.hasConnection"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Data Extractor",
+      "properties": {
+        "dataExtractor.countdownDataFolder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where a Countdown download is put when it is opened in the RMNCAH or Vaccination app: the app keeps its saved dataset and workspace next to it. When empty: Documents/Countdown data/(the server)."
+        }
+      }
+    }
   },
   "scripts": {
     "prebuild": "npm --prefix ../datasuite-ui-kit/packages/components run build",

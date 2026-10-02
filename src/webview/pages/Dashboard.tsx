@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Connection, IDhis2DownloadHistoryRow } from '../../shared/api';
-import { ActionCard, Card, EmptyState, ErrorLine, IconButton, Icon, PageHeader, StatCard } from '../components';
+import { ActionCard, Card, EmptyState, ErrorLine, IconButton, Icon, OpenInApp, PageHeader, StatCard } from '../components';
+import { formatNumber } from '../locale';
 import { fromNow, host, useAction, useLoad } from '../hooks';
 
 export function Dashboard({ connection, go }: { connection: Connection; go: (page: 'mappings' | 'downloads' | 'new-mapping') => void }) {
@@ -45,12 +46,12 @@ export function Dashboard({ connection, go }: { connection: Connection; go: (pag
 			}} />
 			<ErrorLine error={error ?? status.error ?? mappings.error} onDismiss={dismiss} />
 			<div className="de-grid-3">
-				<StatCard label="Metadata copy" icon="database" value={total === undefined ? '-' : total.toLocaleString()} sub="Data elements, disaggregations and organisation units"
+				<StatCard label="Metadata copy" icon="database" value={total === undefined ? '-' : formatNumber(total)} sub="Data elements, disaggregations and organisation units"
 					footer={metadataFooter[0]} footerIcon={metadataFooter[1]} onClick={s?.syncing ? undefined : sync} />
-				<StatCard label="Mappings" icon="diagram-project" value={mappings.value ? mappings.value.length.toLocaleString() : '-'} sub="Saved"
+				<StatCard label="Mappings" icon="diagram-project" value={mappings.value ? formatNumber(mappings.value.length) : '-'} sub="Saved"
 					footer={mappings.error ? 'Unable to load mappings' : mappings.value?.length ? `Latest: ${mappings.value[0].name}` : 'No mappings yet'}
 					footerIcon={mappings.error ? 'triangle-exclamation' : 'clock-rotate-left'} onClick={() => go('mappings')} />
-				<StatCard label="Downloads" icon="cloud-arrow-down" value={downloads.value ? active.length.toLocaleString() : '-'} sub="Running or paused"
+				<StatCard label="Downloads" icon="cloud-arrow-down" value={downloads.value ? formatNumber(active.length) : '-'} sub="Running or paused"
 					footer={downloadsFooter[0]} footerIcon={downloadsFooter[1]} onClick={() => go('downloads')} />
 			</div>
 
@@ -63,14 +64,15 @@ export function Dashboard({ connection, go }: { connection: Connection; go: (pag
 
 			<Card title="Recent downloads" icon="clock-rotate-left" flush
 				tools={<button type="button" className="cd-button cd-button--link" onClick={() => go('downloads')}>View all</button>}>
-				<RecentDownloads rows={recent.value?.history.slice(0, 5)} exportAs={(row, format) => void run(() => host.exportDownload(id, row.id, format, labels))} />
+				<RecentDownloads rows={recent.value?.history.slice(0, 5)} exportAs={(row, format) => void run(() => host.exportDownload(id, row.id, format, labels))}
+					openInApp={(row, app) => void run(() => host.openDownloadInApp(id, row.id, app, labels))} />
 			</Card>
 		</>
 	);
 }
 
 /** The last finished downloads, each a click from its workbook. */
-function RecentDownloads({ rows, exportAs }: { rows: IDhis2DownloadHistoryRow[] | undefined; exportAs(row: IDhis2DownloadHistoryRow, format: 'EXCEL' | 'JSON'): void }) {
+function RecentDownloads({ rows, exportAs, openInApp }: { rows: IDhis2DownloadHistoryRow[] | undefined; exportAs(row: IDhis2DownloadHistoryRow, format: 'EXCEL' | 'JSON'): void; openInApp(row: IDhis2DownloadHistoryRow, app: 'rmncah' | 'vaxx'): void }) {
 	if (!rows) {
 		return null;
 	}
@@ -88,6 +90,7 @@ function RecentDownloads({ rows, exportAs }: { rows: IDhis2DownloadHistoryRow[] 
 					</div>
 					<span className="de-list__meta">{row.size} &middot; {row.date}</span>
 					<div className="de-row-actions">
+						{row.mappingMode === 'countdown' && <OpenInApp onOpen={app => openInApp(row, app)} />}
 						<IconButton icon="file-excel" title="Export to Excel" onClick={() => exportAs(row, 'EXCEL')} />
 						<IconButton icon="file-code" title="Export to JSON" onClick={() => exportAs(row, 'JSON')} />
 					</div>

@@ -7,49 +7,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Connection, ExtractorEvents, ExtractorHost } from './shared/api';
-import { RpcEvent } from './shared/rpc';
+import { DownloadRunner } from './download';
+import { createHost } from './host';
+import { migrateBuiltInExtractor } from './migrate';
 import { ExtractorPanel } from './panel';
+import { ExtractorEvents } from './shared/api';
+import { RpcEvent } from './shared/rpc';
+import { ExtractorStore } from './store';
 
 export function activate(context: vscode.ExtensionContext): void {
+	const log = vscode.window.createOutputChannel('Data Extractor', { log: true });
+	const store = new ExtractorStore(context.globalStorageUri.fsPath);
+	const runner = new DownloadRunner(store, log);
 	const events = new vscode.EventEmitter<RpcEvent>();
 	const fire = <K extends keyof ExtractorEvents>(name: K, data: ExtractorEvents[K]) => events.fire({ kind: 'event', name, data });
 
-	context.subscriptions.push(
-		events,
-		vscode.dhis2.onDidChangeConnections(() => fire('connectionsChanged', undefined)),
-		vscode.dhis2.metadata.onDidChangeStatus(() => fire('metadataChanged', undefined))
-	);
-
-	const host: ExtractorHost = {
-		listConnections: async () => (await vscode.dhis2.getConnections()).map(toConnection),
-		signIn: async () => {
-			const connection = await vscode.dhis2.signIn();
-			return connection && toConnection(connection);
-		},
-		requestAccess: async connectionId => vscode.dhis2.requestAccess(connectionId),
-		manageConnections: async () => { await vscode.commands.executeCommand('workbench.action.dhis2.manageExtensionAccess'); },
-		metadataStatus: async connectionId => vscode.dhis2.metadata.getStatus(connectionId),
-		syncMetadata: async (connectionId, force) => vscode.dhis2.metadata.sync(connectionId, { force })
+	// The built-in extractor's work carried over, and downloads that were running when DataSuite closed paused,
+	// for every connection this extension has -- now, and whenever it gets another
+	const prepare = async () => {
+		await migrateBuiltInExtractor(store, log);
+		for (const connection of await vscode.dhis2.getConnections().then(cs => cs.filter(c => c.granted), () => [])) {
+			await runner.reconcile(connection.id).catch(error => log.warn(`Could not check unfinished downloads: ${error}`));
+		}
 	};
+	void prepare();
 
-	context.subscriptions.push(vscode.commands.registerCommand('dataExtractor.open', () => {
-		ExtractorPanel.show(context, host, events.event);
-	}));
+	context.subscriptions.push(
+		log,
+		store,
+		events,
+		vscode.dhis2.onDidChangeConnections(() => {
+			fire('connectionsChanged', undefined);
+			void prepare();
+		}),
+		vscode.dhis2.metadata.onDidChangeStatus(() => fire('metadataChanged', undefined)),
+		store.onDidChangeMappings(connectionId => fire('mappingsChanged', connectionId)),
+		store.onDidChangeDownloads(connectionId => fire('downloadsChanged', connectionId)),
+		vscode.commands.registerCommand('dataExtractor.open', () => {
+			ExtractorPanel.show(context, createHost(store, runner), events.event);
+		})
+	);
 }
 
 export function deactivate(): void {
-	// nothing to release: the panel and listeners are in the context's subscriptions
-}
-
-function toConnection(connection: vscode.Dhis2Connection): Connection {
-	return {
-		id: connection.id,
-		serverUrl: connection.serverUrl,
-		username: connection.username,
-		displayName: connection.displayName,
-		usesAccessToken: connection.usesAccessToken,
-		country: connection.country,
-		granted: connection.granted
-	};
+	// The panel, listeners and channels are in the context's subscriptions; a running download stops with the extension
+	// host, and is paused (resumable) the next time
 }

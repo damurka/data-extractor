@@ -198,6 +198,30 @@ export class DownloadRunner {
 		}
 	}
 
+	/** What a download would fetch, without fetching: its data items, periods, organisation units and requests. */
+	async estimate(connectionId: string, config: DownloadConfig): Promise<{ dataItems: number; periods: number; firstPeriod?: string; lastPeriod?: string; organisationUnits: number; requests: number; calendar?: string }> {
+		const mapping = await this.store.getMapping(connectionId, config.mappingId);
+		if (!mapping) {
+			throw new Error('Mapping not found');
+		}
+		const settings = await this.store.readSettings(connectionId);
+		const calendar = await vscode.dhis2.metadata.getCalendar(connectionId);
+		const organisationUnits = [config.boundaryOrgUnitUid ?? config.adminLevel];
+		const parts = this.partsOf(mapping, config, calendar).filter(p => p.dataItems.length && p.periods.length);
+		const plans = await Promise.all(parts.map(p => vscode.dhis2.planAnalyticsDownload(connectionId, { dataItems: p.dataItems, periods: p.periods, organisationUnits, settings })));
+		// The monthly periods when there are any (Countdown's population is yearly, its other parts monthly)
+		const periods = parts.find(p => p.name !== 'pop')?.periods ?? parts[0]?.periods ?? [];
+		return {
+			dataItems: parts.reduce((n, p) => n + p.dataItems.length, 0),
+			periods: periods.length,
+			firstPeriod: periods[0],
+			lastPeriod: periods[periods.length - 1],
+			organisationUnits: plans[0]?.organisationUnits ?? 0,
+			requests: plans.reduce((n, p) => n + p.totalChunks, 0),
+			calendar
+		};
+	}
+
 	/** The download's parts: Countdown's three (their periods fixed by kind), or a custom mapping's one. */
 	private partsOf(mapping: IAddMappingDraft, config: DownloadConfig, calendar: string | undefined): Part[] {
 		if (mapping.mode !== 'countdown') {

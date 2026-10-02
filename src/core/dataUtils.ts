@@ -424,7 +424,7 @@ function listProfiles(profiles: readonly IDhis2Profile[]): string {
  */
 export function resolveProfileChoice(profiles: readonly IDhis2Profile[], hint: string | undefined): ProfileChoice {
 	if (!profiles.length) {
-		return { kind: 'error', error: 'No DHIS2 profiles found. Ask the user to log in to a DHIS2 server in the DataSuite extractor first.' };
+		return { kind: 'error', error: 'No DHIS2 connections found. Ask the user to sign in to a DHIS2 server in the Data Extractor (DHIS2: Open Data Extractor) first.' };
 	}
 	const sorted = profiles.slice().sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
 	const h = hint?.trim();

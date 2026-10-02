@@ -14,6 +14,7 @@ import { ExtractorPanel } from './panel';
 import { ExtractorEvents } from './shared/api';
 import { RpcEvent } from './shared/rpc';
 import { ExtractorStore } from './store';
+import { registerChatTools } from './tools';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const log = vscode.window.createOutputChannel('Data Extractor', { log: true });
@@ -45,7 +46,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		store.onDidChangeDownloads(connectionId => fire('downloadsChanged', connectionId)),
 		vscode.commands.registerCommand('dataExtractor.open', () => {
 			ExtractorPanel.show(context, createHost(store, runner), events.event);
-		})
+		}),
+		registerChatTools({ store, runner, log, storageUri: context.globalStorageUri })
 	);
 }
 

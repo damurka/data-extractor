@@ -29,6 +29,999 @@
         "title": "Open Data Extractor",
         "category": "DHIS2"
       }
+    ],
+    "languageModelTools": [
+      {
+        "name": "dhis2_getProfiles",
+        "toolReferenceName": "dhis2_getProfiles",
+        "displayName": "Get DHIS2 Connections",
+        "userDescription": "List the DHIS2 servers signed in to in DataSuite",
+        "modelDescription": "Lists the DHIS2 servers (connections) the user signed in to in DataSuite: name, id, server, username, and whether the Data Extractor may read through each. Never ask the user for a DHIS2 URL or credentials. Every other dhis2_* tool takes an optional profileId (connection id, name or server host); without it the first connection the Data Extractor may use is used, and each result starts with the connection it used.",
+        "icon": "$(account)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "dhis2_searchMetadata",
+        "toolReferenceName": "dhis2_searchMetadata",
+        "displayName": "DHIS2: Search Metadata",
+        "userDescription": "Search DHIS2 metadata: data elements, indicators, data element groups, organisation units, org unit groups, or data sets",
+        "modelDescription": "Finds DHIS2 metadata by name, code or uid in DataSuite's local copy of the server's metadata (never ask for server URL or credentials). One type per call. Matching falls back automatically (every word -> letter/digit variants like anc1/\"anc 1\" -> known synonyms like Penta/DTP-HepB-Hib -> substrings -> any word), so short concepts (\"anc 1\", \"penta 3\", \"opd\") work best. Results are one compact line each; pass detail:true for descriptions, form names, groups and formulas (needed when judging a mapping). Paged: the header says \"showing N of M\" -- use offset for more. For org units, pass level to restrict to one level; results show the ancestor path.",
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "dataElements",
+                "indicators",
+                "dataSets",
+                "dataElementGroups",
+                "orgUnits",
+                "orgUnitGroups"
+              ],
+              "description": "What to search. orgUnitGroups is searched on the live server."
+            },
+            "query": {
+              "type": "string",
+              "description": "Name, code or uid to look for -- a short concept works best."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Results per page (default 20, max 500)."
+            },
+            "offset": {
+              "type": "number",
+              "description": "Results to skip, for the next page (default 0)."
+            },
+            "level": {
+              "type": "number",
+              "description": "orgUnits only: only org units at this level (see dhis2_getOrgUnitLevels)."
+            },
+            "detail": {
+              "type": "boolean",
+              "description": "Include descriptions, form names, groups, formulas and lastUpdated (default false)."
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getOrgUnitLevels",
+        "toolReferenceName": "dhis2_getOrgUnitLevels",
+        "displayName": "DHIS2: Org Unit Levels",
+        "userDescription": "List the organisation unit levels (country, region, district...) and how many org units each has",
+        "modelDescription": "Lists the org unit hierarchy levels of the DHIS2 server: number, name (e.g. 1 National, 2 Region, 3 District, 4 Facility) and org unit count. Use LEVEL-<n> (or the level name) as ou in dhis2_queryAnalytics, level in dhis2_reportingCompleteness, and adminLevel in dhis2_startDownload.",
+        "icon": "$(list-tree)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            }
+          }
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_queryAnalytics",
+        "toolReferenceName": "dhis2_queryAnalytics",
+        "displayName": "DHIS2: Query Analytics",
+        "userDescription": "Get aggregated DHIS2 numbers (data elements, indicators, reporting rates) by period and org unit",
+        "modelDescription": "The main tool for answering DHIS2 data questions (\"how many ANC 1st visits in Nairobi last year?\", \"Penta3 coverage by region for 2024\"). Runs one DHIS2 analytics query and returns a table with names, plus the full tidy result as a CSV for R (path, preview and readr line). No mapping or download needed.\ndx: data elements or indicators by uid or exact name (names are looked up and the result says how each was resolved; an ambiguous name returns its candidates instead of guessing); \"<uid>.<cocUid>\" for one disaggregation; \"<dataSetUid or name>.REPORTING_RATE\" (also ACTUAL_REPORTS, EXPECTED_REPORTS) for reporting.\nou: org unit uids or names, LEVEL-<n> or LEVEL-<level name> (all org units at that level, see dhis2_getOrgUnitLevels), OU_GROUP-<uid or name>, USER_ORGUNIT (default), USER_ORGUNIT_CHILDREN; combine a parent with a level (\"Nairobi\" + \"LEVEL-4\") for the units under it.\npe: DHIS2 period ids: year 2024; month 202401; quarter 2024Q1; week 2024W5 (also 2024WedW5, 2024SunW5); bi-week 2024BiW1; bi-month 202401B; six-month 2024S1 (2024AprilS1, 2024NovS1); financial year 2024April/2024July/2024Oct/2024Nov; day 20240115. Relative: THIS_YEAR, LAST_YEAR, LAST_5_YEARS, THIS_MONTH, LAST_MONTH, LAST_3_MONTHS, LAST_6_MONTHS, LAST_12_MONTHS, MONTHS_THIS_YEAR, MONTHS_LAST_YEAR, THIS_QUARTER, LAST_QUARTER, LAST_4_QUARTERS, QUARTERS_THIS_YEAR, LAST_4_WEEKS, LAST_12_WEEKS, LAST_52_WEEKS, THIS_FINANCIAL_YEAR, LAST_FINANCIAL_YEAR. Ethiopian-calendar servers number periods in the Ethiopian calendar (e.g. 2016, 201601 = Meskerem 2016) -- relative periods work the same on every calendar.\nfilters: dimensions to aggregate over instead of break down by, e.g. [\"pe:2024\"] for one 2024 total per org unit.",
+        "icon": "$(graph)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dx": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Data items: uids or names (see description)."
+            },
+            "pe": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Periods, e.g. [\"2024\"], [\"202401\",\"202402\"], [\"2024Q1\"], [\"LAST_12_MONTHS\"]. Omit only if a pe filter is given."
+            },
+            "ou": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Org units: uids, names, LEVEL-n, OU_GROUP-x, USER_ORGUNIT. Default USER_ORGUNIT."
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Filter dimensions as \"dim:item;item\", e.g. \"pe:2024\" or \"ou:LEVEL-1\"."
+            },
+            "displayProperty": {
+              "type": "string",
+              "enum": [
+                "NAME",
+                "SHORTNAME"
+              ],
+              "description": "Names or short names in the output (default NAME)."
+            },
+            "aggregationType": {
+              "type": "string",
+              "enum": [
+                "SUM",
+                "AVERAGE",
+                "AVERAGE_SUM_ORG_UNIT",
+                "LAST",
+                "LAST_AVERAGE_ORG_UNIT",
+                "COUNT",
+                "MIN",
+                "MAX"
+              ],
+              "description": "Override the items' own aggregation (rarely needed)."
+            },
+            "saveAs": {
+              "type": "string",
+              "description": "Short label for the CSV file name (default: the first data item)."
+            },
+            "maxRows": {
+              "type": "number",
+              "description": "Rows shown in the table (default 50); the CSV always has all rows."
+            }
+          },
+          "required": [
+            "dx"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_reportingCompleteness",
+        "toolReferenceName": "dhis2_reportingCompleteness",
+        "displayName": "DHIS2: Reporting Completeness",
+        "userDescription": "Expected vs received reports for a data set, and which org units did not report",
+        "modelDescription": "Reporting completeness of one data set (form): expected reports, reports received, reporting rate and missing reports, per org unit (lowest rate first), with the org units that sent nothing listed by name. Periods are summed unless byPeriod is true. Writes the table as a CSV for R.\ndataSet: uid or name. ou: where to look (default USER_ORGUNIT), uids or names. level: list the org units at this level inside ou (\"LEVEL-4\", 4 or a level name) -- without it you get one row per ou. pe: DHIS2 period ids: year 2024; month 202401; quarter 2024Q1; week 2024W5 (also 2024WedW5, 2024SunW5); bi-week 2024BiW1; bi-month 202401B; six-month 2024S1 (2024AprilS1, 2024NovS1); financial year 2024April/2024July/2024Oct/2024Nov; day 20240115. Relative: THIS_YEAR, LAST_YEAR, LAST_5_YEARS, THIS_MONTH, LAST_MONTH, LAST_3_MONTHS, LAST_6_MONTHS, LAST_12_MONTHS, MONTHS_THIS_YEAR, MONTHS_LAST_YEAR, THIS_QUARTER, LAST_QUARTER, LAST_4_QUARTERS, QUARTERS_THIS_YEAR, LAST_4_WEEKS, LAST_12_WEEKS, LAST_52_WEEKS, THIS_FINANCIAL_YEAR, LAST_FINANCIAL_YEAR. Ethiopian-calendar servers number periods in the Ethiopian calendar (e.g. 2016, 201601 = Meskerem 2016) -- relative periods work the same on every calendar.",
+        "icon": "$(checklist)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dataSet": {
+              "type": "string",
+              "description": "Data set uid or name."
+            },
+            "pe": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Periods, e.g. [\"LAST_12_MONTHS\"] or [\"202401\",\"202402\"]."
+            },
+            "ou": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Org units (uids or names) to look in. Default USER_ORGUNIT."
+            },
+            "level": {
+              "type": "string",
+              "description": "Optional level to break down to inside ou, e.g. \"4\", \"LEVEL-4\" or \"Facility\"."
+            },
+            "byPeriod": {
+              "type": "boolean",
+              "description": "One row per org unit and period instead of summing the periods (default false)."
+            },
+            "maxRows": {
+              "type": "number",
+              "description": "Rows shown in the table (default 50); the CSV has all."
+            }
+          },
+          "required": [
+            "dataSet",
+            "pe"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getDataValues",
+        "toolReferenceName": "dhis2_getDataValues",
+        "displayName": "DHIS2: Get Raw Data Values",
+        "userDescription": "Read the raw values entered in DHIS2 for a form or data elements, org units and periods",
+        "modelDescription": "Reads raw stored data values (dataValueSets) -- exactly what was entered per data element, disaggregation, org unit and period, with who stored it and when. Use it to check or audit entries; use dhis2_queryAnalytics for totals and aggregates. Needs dataSet and/or dataElements (uids or names), orgUnits (uids or names; children:true includes everything below them), and periods (e.g. [\"202401\"]) or startDate/endDate (YYYY-MM-DD). Returns a named table and writes a CSV for R.",
+        "icon": "$(table)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dataSet": {
+              "type": "string",
+              "description": "Data set uid or name."
+            },
+            "dataElements": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Data element uids or names (needs DHIS2 2.39+ without dataSet)."
+            },
+            "periods": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Period ids, e.g. [\"202401\"]."
+            },
+            "startDate": {
+              "type": "string",
+              "description": "Start date YYYY-MM-DD (instead of periods)."
+            },
+            "endDate": {
+              "type": "string",
+              "description": "End date YYYY-MM-DD (instead of periods)."
+            },
+            "orgUnits": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Org unit uids or names."
+            },
+            "children": {
+              "type": "boolean",
+              "description": "Include all org units below orgUnits (default false)."
+            },
+            "maxRows": {
+              "type": "number",
+              "description": "Rows shown (default 50); the CSV has all."
+            }
+          },
+          "required": [
+            "orgUnits"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getCategoryOptionCombos",
+        "toolReferenceName": "dhis2_getCategoryOptionCombos",
+        "displayName": "DHIS2: Get Category Option Combos",
+        "userDescription": "List the disaggregation categories (Category Option Combos) available for a DHIS2 data element",
+        "modelDescription": "Returns the Category Option Combos (disaggregation breakdowns, e.g. \"Female, 15-19y\") for one Data Element uid, plus whether it uses DHIS2's Default Category Combo (meaning it has no real disaggregation at all). Call this before mapping a Data Element whenever the user's request implies a specific breakdown (a sex, an age group, a specific option) rather than the element's total -- then pass the matching uids as that source's \"cocUids\" in dhis2_createMapping/dhis2_updateMapping. If the user wants the element's full total, omit \"cocUids\" entirely instead of listing every combo yourself.",
+        "icon": "$(list-filter)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dataElementUid": {
+              "type": "string",
+              "description": "The uid of the data element, as returned by dhis2_searchMetadata."
+            }
+          },
+          "required": [
+            "dataElementUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getDataSetElements",
+        "toolReferenceName": "dhis2_getDataSetElements",
+        "displayName": "DHIS2: Get Data Set Elements",
+        "userDescription": "List every data element that actually belongs to a DHIS2 dataset (form)",
+        "modelDescription": "Returns every Data Element that actually belongs to a dataset (e.g. a form like \"MOH 717\"), found via dhis2_searchMetadata (type: \"dataSets\"). Use this to VERIFY which elements a form contains instead of guessing from name patterns -- real DHIS2 instances often name elements inconsistently (a form's elements do not necessarily contain that form's code/name as a substring, and a name search for the form code combined with an indicator keyword can return zero results even when the right element exists under a completely different name). Each result includes name, displayName, formName, description, and which Data Element Groups it belongs to -- read all of these, not just name, before deciding an element does or doesn't belong to what you're looking for.",
+        "icon": "$(list-tree)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dataSetUid": {
+              "type": "string",
+              "description": "The uid of the dataset, as returned by dhis2_searchMetadata (type: \"dataSets\")."
+            }
+          },
+          "required": [
+            "dataSetUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getDataSetsForElement",
+        "toolReferenceName": "dhis2_getDataSetsForElement",
+        "displayName": "DHIS2: Get Data Sets For Element",
+        "userDescription": "List which dataset(s) a data element belongs to",
+        "modelDescription": "Returns every dataset a Data Element belongs to -- the reverse of dhis2_getDataSetElements (an element can be in more than one dataset). Use this once you have settled on a Data Element match, to report which form/dataset it actually comes from in your final mapping table, rather than assuming or leaving it blank.",
+        "icon": "$(list-tree)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dataElementUid": {
+              "type": "string",
+              "description": "The uid of the data element, as returned by dhis2_searchMetadata."
+            }
+          },
+          "required": [
+            "dataElementUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getGroupElements",
+        "toolReferenceName": "dhis2_getGroupElements",
+        "displayName": "DHIS2: Get Group Elements",
+        "userDescription": "List every data element belonging to a Data Element Group",
+        "modelDescription": "Returns every Data Element belonging to a Data Element Group, found via dhis2_searchMetadata (type: \"dataElementGroups\"). Use this when a source indicator's name matches a group's name/description (e.g. \"MOH 717 Rev2020 elements\") before it matches any specific member element -- mirrors dhis2_getDataSetElements, but for groups instead of datasets.",
+        "icon": "$(list-tree)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "groupUid": {
+              "type": "string",
+              "description": "The uid of the Data Element Group, as returned by dhis2_searchMetadata (type: \"dataElementGroups\")."
+            }
+          },
+          "required": [
+            "groupUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getLastDataPeriod",
+        "toolReferenceName": "dhis2_getLastDataPeriod",
+        "displayName": "DHIS2: Get Last Data Period",
+        "userDescription": "Check whether a data element or indicator has recently reported data, or appears abandoned",
+        "modelDescription": "Latest period (month when the item has monthly data, else year) in which a data element or indicator has any value anywhere in the country, over the last 5 years plus this year -- the real \"is this still reported\" signal (lastUpdated only reflects metadata edits). A live analytics query: use it as a tie-breaker between plausible candidates, not for every search hit. No data + recent lastUpdated suggests a new item; no data + old lastUpdated suggests an abandoned one.",
+        "icon": "$(history)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "dxUid": {
+              "type": "string",
+              "description": "The uid of the Data Element or Indicator to check, as returned by dhis2_searchMetadata. Not meant for Data Set uids."
+            }
+          },
+          "required": [
+            "dxUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getIndicatorDataElements",
+        "toolReferenceName": "dhis2_getIndicatorDataElements",
+        "displayName": "DHIS2: Get Indicator Data Elements",
+        "userDescription": "Decipher which data element(s) and category option combo(s) a DHIS2 Indicator's formula actually resolves to",
+        "modelDescription": "When a Countdown export code is best matched by a DHIS2 \"Indicator\" (a calculated formula, not a raw Data Element) rather than a Data Element directly, call this first to decipher what the indicator's numerator/denominator formula actually resolves to at the operand level -- the specific Data Element(s) and, where relevant, Category Option Combo(s) it reads. Use this to confirm the Indicator really measures what the export code expects (its numeratorDescription/denominatorDescription from dhis2_searchMetadata is a paraphrase; this is the literal answer) before mapping it, rather than mapping an Indicator on name/description alone.",
+        "icon": "$(symbol-operator)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "indicatorUid": {
+              "type": "string",
+              "description": "The uid of the Indicator, as returned by dhis2_searchMetadata (type: \"indicators\")."
+            }
+          },
+          "required": [
+            "indicatorUid"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getMappings",
+        "toolReferenceName": "dhis2_getMappings",
+        "displayName": "DHIS2: List Mappings",
+        "userDescription": "List all saved data extraction mappings for a DHIS2 connection",
+        "modelDescription": "Returns the mapping definitions the Data Extractor has saved for the selected connection. Prefer this over asking for manual mapping details.",
+        "icon": "$(list-unordered)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            }
+          }
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getMappingDetails",
+        "toolReferenceName": "dhis2_getMappingDetails",
+        "displayName": "DHIS2: Get Mapping Details",
+        "userDescription": "Get the full indicator configuration for a saved DHIS2 extraction mapping",
+        "modelDescription": "Returns full Data Extractor mapping details for a saved mapping id, including indicators and disaggregations.",
+        "icon": "$(file-text)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "mappingId": {
+              "type": "string",
+              "description": "The ID of the mapping to retrieve."
+            }
+          },
+          "required": [
+            "mappingId"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_downloadInstructions",
+        "toolReferenceName": "dhis2_downloadInstructions",
+        "displayName": "DHIS2: Preview Mapping Download",
+        "userDescription": "Preview what a download of a saved mapping would fetch, and how to run it",
+        "modelDescription": "Read-only preview of a saved mapping download: its indicators and sources, and -- given startDate/endDate/adminLevel -- how many periods, org units and analytics requests it needs. Also explains how the user can run it in the Data Extractor (Downloads). Changes nothing and opens nothing. Not required before dhis2_startDownload, which shows the same summary in its confirmation.",
+        "icon": "$(cloud-download)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "mappingId": {
+              "type": "string",
+              "description": "The mapping id (from dhis2_getMappings)."
+            },
+            "startDate": {
+              "type": "string",
+              "description": "Optional start date (YYYY-MM-DD) for the estimate."
+            },
+            "endDate": {
+              "type": "string",
+              "description": "Optional end date (YYYY-MM-DD) for the estimate."
+            },
+            "periodType": {
+              "type": "string",
+              "enum": [
+                "monthly",
+                "yearly"
+              ],
+              "description": "Optional period granularity (custom mappings; Countdown mappings always fetch monthly + yearly population)."
+            },
+            "adminLevel": {
+              "type": "string",
+              "description": "Optional org unit level: \"LEVEL-3\", 3, or a level name (see dhis2_getOrgUnitLevels)."
+            }
+          },
+          "required": [
+            "mappingId"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_createMapping",
+        "toolReferenceName": "dhis2_createMapping",
+        "displayName": "DHIS2: Create Mapping",
+        "userDescription": "Create a new DHIS2 data extraction mapping",
+        "modelDescription": "Creates and saves a new Data Extractor mapping from a name, mode, and a list of indicators with their source data elements/datasets/indicators. Use dhis2_searchMetadata first to find the uids and names of sources to include. For a \"Data Element\" source, if the user's request implies a specific breakdown (a sex, an age group, a specific option) rather than the element's total, call dhis2_getCategoryOptionCombos first and pass the matching uids as that source's \"cocUids\" -- do not guess disaggregation uids or assume every element has (or lacks) real categories. If mode is \"countdown\", call dhis2_getCountdownIndicators first and use its ids verbatim as exportCode -- never invent or guess a countdown exportCode.\n\nEvery indicator requires \"confidence\" and \"reasoning\" -- the call is REJECTED without them, on every indicator, regardless of how small the request is. Do not call this in the same turn you first search for sources; follow the comprehensive search and reasoning-table process in dhis2-mapping.instructions.md and get the user's explicit go-ahead first. If the same source uid ends up covering more than a handful of unrelated export codes, expect a warning back -- that is a signal you are reusing a fallback rather than matching each indicator on its own merits; search harder or mark those rows \"Low\" confidence and ask the user instead of proceeding.",
+        "icon": "$(add)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for the new mapping."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of the mapping's purpose."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "custom",
+                "countdown"
+              ],
+              "description": "Mapping mode: \"custom\" for free-form selections, \"countdown\" for the Countdown to 2030 indicator template."
+            },
+            "indicators": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "internalName": {
+                    "type": "string",
+                    "description": "Display name for this indicator within the mapping."
+                  },
+                  "exportCode": {
+                    "type": "string",
+                    "description": "The export column code this indicator's sources are summed into."
+                  },
+                  "sources": {
+                    "type": "array",
+                    "description": "Data elements, datasets, or indicators feeding this export code. Use dhis2_searchMetadata to find their uids first.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The uid of the source data element, dataset, or indicator."
+                        },
+                        "sourceElement": {
+                          "type": "string",
+                          "description": "The display name of the source, as returned by dhis2_searchMetadata."
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Data Element",
+                            "DataSet",
+                            "Indicator"
+                          ],
+                          "description": "The metadata type of this source."
+                        },
+                        "cocUids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Only for \"Data Element\" sources with real disaggregation categories (Sex, Age group, etc.): the specific Category Option Combo uids to include, from dhis2_getCategoryOptionCombos. Omit entirely to include every combo -- only set this when the user's request is actually scoped to a subset (e.g. \"female clients only\"). Never guess uids; always call dhis2_getCategoryOptionCombos first."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sourceElement",
+                        "type"
+                      ]
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "High",
+                      "Medium",
+                      "Low"
+                    ],
+                    "description": "Required judgment for this indicator's match, per dhis2-mapping.instructions.md's rubric: \"High\" (an active candidate whose name/description/disaggregation all confirm the match, no other plausible candidate), \"Medium\" (a probable match with one unconfirmed signal), \"Low\" (the best available guess under genuine uncertainty, or no real match was found). The call is rejected without this. Never pick \"High\"/\"Medium\" just to fill the field -- an honest \"Low\" is required whenever the match isn't truly confirmed."
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "description": "Required: why this specific source was chosen over other candidates and how confidence was determined. The call is rejected if this is missing or empty."
+                  }
+                },
+                "required": [
+                  "internalName",
+                  "exportCode",
+                  "sources",
+                  "confidence",
+                  "reasoning"
+                ]
+              },
+              "description": "The indicators to include in this mapping."
+            }
+          },
+          "required": [
+            "name",
+            "mode",
+            "indicators"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_updateMapping",
+        "toolReferenceName": "dhis2_updateMapping",
+        "displayName": "DHIS2: Update Mapping",
+        "userDescription": "Update an existing DHIS2 data extraction mapping",
+        "modelDescription": "Updates an existing Data Extractor mapping. Any of name/description/mode/indicators may be provided; omitted fields keep their current value. Providing \"indicators\" replaces the full indicator list -- use dhis2_getMappingDetails first if you need to preserve existing indicators alongside new ones. For a \"Data Element\" source, if the user's request implies a specific breakdown (a sex, an age group, a specific option) rather than the element's total, call dhis2_getCategoryOptionCombos first and pass the matching uids as that source's \"cocUids\" -- do not guess disaggregation uids or assume every element has (or lacks) real categories. If mode is \"countdown\", call dhis2_getCountdownIndicators first and use its ids verbatim as exportCode -- never invent or guess a countdown exportCode.\n\nWhen \"indicators\" is provided, every indicator requires \"confidence\" and \"reasoning\" -- the call is REJECTED without them. Do not call this in the same turn you first search for sources; follow the comprehensive search and reasoning-table process in dhis2-mapping.instructions.md and get the user's explicit go-ahead first. If the same source uid ends up covering more than a handful of unrelated export codes, expect a warning back -- that is a signal you are reusing a fallback rather than matching each indicator on its own merits.",
+        "icon": "$(edit)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "mappingId": {
+              "type": "string",
+              "description": "The ID of the mapping to update."
+            },
+            "name": {
+              "type": "string",
+              "description": "New name for the mapping."
+            },
+            "description": {
+              "type": "string",
+              "description": "New description for the mapping."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "custom",
+                "countdown"
+              ],
+              "description": "New mapping mode."
+            },
+            "indicators": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "internalName": {
+                    "type": "string",
+                    "description": "Display name for this indicator within the mapping."
+                  },
+                  "exportCode": {
+                    "type": "string",
+                    "description": "The export column code this indicator's sources are summed into."
+                  },
+                  "sources": {
+                    "type": "array",
+                    "description": "Data elements, datasets, or indicators feeding this export code. Use dhis2_searchMetadata to find their uids first.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The uid of the source data element, dataset, or indicator."
+                        },
+                        "sourceElement": {
+                          "type": "string",
+                          "description": "The display name of the source, as returned by dhis2_searchMetadata."
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Data Element",
+                            "DataSet",
+                            "Indicator"
+                          ],
+                          "description": "The metadata type of this source."
+                        },
+                        "cocUids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Only for \"Data Element\" sources with real disaggregation categories (Sex, Age group, etc.): the specific Category Option Combo uids to include, from dhis2_getCategoryOptionCombos. Omit entirely to include every combo -- only set this when the user's request is actually scoped to a subset (e.g. \"female clients only\"). Never guess uids; always call dhis2_getCategoryOptionCombos first."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sourceElement",
+                        "type"
+                      ]
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "High",
+                      "Medium",
+                      "Low"
+                    ],
+                    "description": "Required judgment for this indicator's match, per dhis2-mapping.instructions.md's rubric: \"High\" (an active candidate whose name/description/disaggregation all confirm the match, no other plausible candidate), \"Medium\" (a probable match with one unconfirmed signal), \"Low\" (the best available guess under genuine uncertainty, or no real match was found). The call is rejected without this. Never pick \"High\"/\"Medium\" just to fill the field -- an honest \"Low\" is required whenever the match isn't truly confirmed."
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "description": "Required: why this specific source was chosen over other candidates and how confidence was determined. The call is rejected if this is missing or empty."
+                  }
+                },
+                "required": [
+                  "internalName",
+                  "exportCode",
+                  "sources",
+                  "confidence",
+                  "reasoning"
+                ]
+              },
+              "description": "Replacement list of indicators for this mapping."
+            }
+          },
+          "required": [
+            "mappingId"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_startDownload",
+        "toolReferenceName": "dhis2_startDownload",
+        "displayName": "DHIS2: Start Download",
+        "userDescription": "Download DHIS2 analytics data for a mapping",
+        "modelDescription": "Runs a Data Extractor mapping download (many indicators x periods x org units, chunked and resumable) and waits for it; the user confirms first (the confirmation shows periods, org units and request count). On success the tidy result (ou_uid, ou_name, ancestor names per level, pe, dx_uid = export code, dx_name, value) is written as a CSV where R can read it and the result gives its path, a preview and the readr line. Pass an existing mappingId, or mappingName+mode+indicators to create the mapping first (same confidence/reasoning rules as dhis2_createMapping; countdown export codes only from dhis2_getCountdownIndicators). For a quick answer to a question use dhis2_queryAnalytics instead.",
+        "icon": "$(cloud-download)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "mappingId": {
+              "type": "string",
+              "description": "An existing mapping id. Omit when creating one inline."
+            },
+            "mappingName": {
+              "type": "string",
+              "description": "Name for a new mapping created inline."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "custom",
+                "countdown"
+              ],
+              "description": "Mapping mode, when creating one inline."
+            },
+            "indicators": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "internalName": {
+                    "type": "string",
+                    "description": "Display name for this indicator within the mapping."
+                  },
+                  "exportCode": {
+                    "type": "string",
+                    "description": "The export column code this indicator's sources are summed into."
+                  },
+                  "sources": {
+                    "type": "array",
+                    "description": "Data elements, datasets, or indicators feeding this export code. Use dhis2_searchMetadata to find their uids first.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The uid of the source data element, dataset, or indicator."
+                        },
+                        "sourceElement": {
+                          "type": "string",
+                          "description": "The display name of the source, as returned by dhis2_searchMetadata."
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Data Element",
+                            "DataSet",
+                            "Indicator"
+                          ],
+                          "description": "The metadata type of this source."
+                        },
+                        "cocUids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Only for \"Data Element\" sources with real disaggregation categories (Sex, Age group, etc.): the specific Category Option Combo uids to include, from dhis2_getCategoryOptionCombos. Omit entirely to include every combo -- only set this when the user's request is actually scoped to a subset (e.g. \"female clients only\"). Never guess uids; always call dhis2_getCategoryOptionCombos first."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sourceElement",
+                        "type"
+                      ]
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "High",
+                      "Medium",
+                      "Low"
+                    ],
+                    "description": "Required judgment for this indicator's match, per dhis2-mapping.instructions.md's rubric: \"High\" (an active candidate whose name/description/disaggregation all confirm the match, no other plausible candidate), \"Medium\" (a probable match with one unconfirmed signal), \"Low\" (the best available guess under genuine uncertainty, or no real match was found). The call is rejected without this. Never pick \"High\"/\"Medium\" just to fill the field -- an honest \"Low\" is required whenever the match isn't truly confirmed."
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "description": "Required: why this specific source was chosen over other candidates and how confidence was determined. The call is rejected if this is missing or empty."
+                  }
+                },
+                "required": [
+                  "internalName",
+                  "exportCode",
+                  "sources",
+                  "confidence",
+                  "reasoning"
+                ]
+              },
+              "description": "Indicators for a new mapping created inline."
+            },
+            "startDate": {
+              "type": "string",
+              "description": "Start date, YYYY-MM-DD (Gregorian; converted to the server calendar, e.g. Ethiopian, automatically)."
+            },
+            "endDate": {
+              "type": "string",
+              "description": "End date, YYYY-MM-DD, inclusive."
+            },
+            "periodType": {
+              "type": "string",
+              "enum": [
+                "monthly",
+                "yearly"
+              ],
+              "description": "Period granularity (custom mappings; Countdown always fetches monthly plus yearly population)."
+            },
+            "adminLevel": {
+              "type": "string",
+              "description": "Org unit level to aggregate to: \"LEVEL-2\", 2, or a level name -- see dhis2_getOrgUnitLevels."
+            },
+            "boundaryOrgUnitUid": {
+              "type": "string",
+              "description": "Optional: download just this one org unit (a uid at adminLevel, from dhis2_searchMetadata type orgUnits) instead of every org unit at the level."
+            },
+            "resumeTaskId": {
+              "type": "string",
+              "description": "Optional: the taskId of a paused or failed download to resume from its last completed chunk."
+            }
+          },
+          "required": [
+            "startDate",
+            "endDate",
+            "periodType",
+            "adminLevel"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getDownloadStatus",
+        "toolReferenceName": "dhis2_getDownloadStatus",
+        "displayName": "DHIS2: Download Status",
+        "userDescription": "Show running, paused and recent DHIS2 downloads",
+        "modelDescription": "Shows one download by taskId (running with its progress, paused, completed or failed), or without taskId the running/paused downloads and the 10 most recent finished ones for the connection. Use it to find a taskId to resume with dhis2_startDownload resumeTaskId.",
+        "icon": "$(history)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "taskId": {
+              "type": "string",
+              "description": "Optional download task id."
+            }
+          }
+        },
+        "when": "dataExtractor.hasConnection"
+      },
+      {
+        "name": "dhis2_getCountdownIndicators",
+        "toolReferenceName": "dhis2_getCountdownIndicators",
+        "displayName": "DHIS2: List Countdown Indicators",
+        "userDescription": "List the fixed Countdown to 2030 indicator template -- the only valid export codes for a \"countdown\" mapping",
+        "modelDescription": "Returns the fixed, canonical list of Countdown to 2030 indicator ids (grouped by category: Admin_data, Population_data, Reporting_completeness, Service_data). These ids are the ONLY valid \"exportCode\" values when creating or updating a mapping with mode \"countdown\" -- never invent or guess a countdown exportCode; always call this tool first and use one of the returned ids verbatim. Not needed for mode \"custom\", where exportCode is a free-form label you choose.",
+        "icon": "$(list-unordered)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "dhis2_rawQuery",
+        "toolReferenceName": "dhis2_rawQuery",
+        "displayName": "DHIS2: Raw API Query",
+        "userDescription": "Query any DHIS2 API endpoint directly, for things not covered by the other DHIS2 tools",
+        "modelDescription": "Read-only GET against any DHIS2 Web API resource the curated tools do not cover (organisationUnitGroups, categoryOptions, programs, programIndicators, validationRules, users, dashboards, visualizations, system/info...). Prefer the curated tools: dhis2_queryAnalytics for numbers, dhis2_getDataValues for raw stored values, dhis2_searchMetadata for data elements/indicators/data sets/org units.\n`path`: resource under /api/, e.g. \"organisationUnitGroups\" or \"organisationUnitGroups/<uid>\" (no leading slash, no \"..\", no query string).\n`query`: DHIS2 list parameters -- fields (\"id,displayName,organisationUnits[id,displayName]\"), filter (\"name:ilike:malaria\"; an array of filters is ANDed), order, pageSize/page (default pageSize 50), paging:false (careful on big lists). A value may be an array to repeat the parameter.\nLarge responses are summarised (keys, pager, first items); narrow with fields/filter/pageSize for more.",
+        "icon": "$(terminal)",
+        "canBeReferencedInPrompt": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": {
+              "type": "string",
+              "description": "Optional DHIS2 connection id, name or server host; defaults to the first connection the Data Extractor may use."
+            },
+            "path": {
+              "type": "string",
+              "description": "Resource path under /api/, e.g. \"organisationUnitGroups\" or \"programs/abc12345678\"."
+            },
+            "query": {
+              "type": "object",
+              "description": "Query parameters, e.g. { \"fields\": \"id,displayName\", \"filter\": [\"name:ilike:anc\", \"domainType:eq:AGGREGATE\"], \"pageSize\": 20 }.",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        },
+        "when": "dataExtractor.hasConnection"
+      }
     ]
   },
   "scripts": {

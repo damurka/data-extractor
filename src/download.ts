@@ -209,9 +209,12 @@ export class DownloadRunner {
 		}
 	}
 
-	/** What a download would fetch, without fetching: its data items, periods, organisation units and requests. */
-	async estimate(connectionId: string, config: DownloadConfig): Promise<{ dataItems: number; periods: number; firstPeriod?: string; lastPeriod?: string; organisationUnits: number; requests: number; calendar?: string }> {
-		const mapping = await this.store.getMapping(connectionId, config.mappingId);
+	/**
+	 * What a download would fetch, without fetching: its data items, periods, organisation units and requests. `draft`
+	 * is a mapping not saved yet (a chat tool's, before the user confirms); else the saved one is read.
+	 */
+	async estimate(connectionId: string, config: DownloadConfig, draft?: IAddMappingDraft): Promise<{ dataItems: number; periods: number; firstPeriod?: string; lastPeriod?: string; organisationUnits: number; requests: number; calendar?: string }> {
+		const mapping = draft ?? await this.store.getMapping(connectionId, config.mappingId);
 		if (!mapping) {
 			throw new Error('Mapping not found');
 		}

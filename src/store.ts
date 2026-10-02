@@ -73,11 +73,14 @@ export class ExtractorStore implements vscode.Disposable {
 		return (await this.readJson<Record<string, StoredMapping>>(connectionId, 'mappings.json', {}))[mappingId]?.draft;
 	}
 
-	async createMapping(connectionId: string, draft: IAddMappingDraft): Promise<{ id: string }> {
+	/** Saves a new mapping; the draft being written in the editor is done with, unless `keepDraft` (a mapping made in chat). */
+	async createMapping(connectionId: string, draft: IAddMappingDraft, options?: { keepDraft?: boolean }): Promise<{ id: string }> {
 		const id = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 		const now = Date.now();
 		await this.update<Record<string, StoredMapping>>(connectionId, 'mappings.json', {}, all => ({ ...all, [id]: { id, name: draft.name, description: draft.description, mode: draft.mode, createdAt: now, updatedAt: now, draft } }));
-		await this.clearDraft(connectionId);
+		if (!options?.keepDraft) {
+			await this.clearDraft(connectionId);
+		}
 		this._onDidChangeMappings.fire(connectionId);
 		return { id };
 	}

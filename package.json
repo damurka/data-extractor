@@ -4,7 +4,7 @@
   "description": "Map indicators and download routine data from DHIS2 to Excel, for the Countdown 2030 analyses or your own.",
   "publisher": "datasuite",
   "icon": "media/logo.png",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -1044,7 +1044,6 @@
     }
   },
   "scripts": {
-    "prebuild": "npm --prefix ../datasuite-ui-kit/packages/components run build",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit && tsc -p ./src/webview --noEmit",
@@ -1055,13 +1054,12 @@
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
-    "@fortawesome/fontawesome-free": "^6.7.2",
-    "@quire/components": "file:../datasuite-ui-kit/packages/components",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@types/node": "24.x",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/vscode": "1.125.0",
-    "@vscode/codicons": "^0.0.46-24",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "ovsx": "^1.2.0",

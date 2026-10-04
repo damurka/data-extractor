@@ -5,14 +5,8 @@
 //   node esbuild.mjs --watch    rebuild on change (unminified, with source maps)
 
 import * as esbuild from 'esbuild';
-import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-// @quire/components is linked from the UI kit (file:); its imports of React must find this package's React, not the
-// kit's, or the webview would hold two Reacts
-const require = createRequire(import.meta.url);
-const own = (name) => path.dirname(require.resolve(`${name}/package.json`));
 
 const watch = process.argv.includes('--watch');
 
@@ -35,9 +29,8 @@ const builds = [
 		format: 'iife',
 		target: 'chrome130',
 		jsx: 'automatic',
-		alias: { 'react': own('react'), 'react-dom': own('react-dom') },
-		// fonts (the apps' Source Sans and Serif, Font Awesome, the calendar's codicons), emitted next to
-		// webview.css and referenced from it; pictures inline (a path in the script would be relative to the webview's page)
+		// fonts (IBM Plex Sans and Mono), emitted next to webview.css and referenced from it; pictures inline (a path in
+		// the script would be relative to the webview's page)
 		loader: { '.css': 'css', '.ttf': 'file', '.woff': 'file', '.woff2': 'file', '.svg': 'file', '.png': 'dataurl' },
 		assetNames: '[name]-[hash]',
 	},

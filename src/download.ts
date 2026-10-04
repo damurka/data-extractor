@@ -16,7 +16,7 @@ import { buildDxOperands, buildTidyDownloadRows, ITidyTable } from './core/dataU
 import { Dhis2ExportProcessor } from './core/exportProcessor';
 import { generateDhis2Periods } from './core/periods';
 import { IAddMappingDraft, IDhis2AnalyticsRow, IIndicatorDraft, MappingMode } from './core/types';
-import { completeIndicators } from './shared/mapping';
+import { completeIndicators, isComplete } from './shared/mapping';
 import { ExtractorStore } from './store';
 
 export interface DownloadConfig {
@@ -75,6 +75,8 @@ export class DownloadRunner {
 	/** The downloads running now, and how to stop each. */
 	private readonly running = new Map<string, { source: vscode.CancellationTokenSource; stop?: 'pause' | 'cancel' }>();
 	private readonly processor = new Dhis2ExportProcessor();
+	/** The connections whose unfinished downloads were looked at once (when DataSuite started). */
+	private readonly reconciled = new Set<string>();
 
 	constructor(private readonly store: ExtractorStore, private readonly log: vscode.LogOutputChannel) { }
 
@@ -91,12 +93,17 @@ export class DownloadRunner {
 		}
 	}
 
-	/** Downloads that were running when DataSuite last closed: nothing runs them now, so they are paused. */
+	/**
+	 * Downloads that were running when DataSuite last closed: nothing runs them now, so they are paused -- the first
+	 * time, also the ones that were waiting their turn (later, those are in this session's line and stay).
+	 */
 	async reconcile(connectionId: string): Promise<void> {
+		const first = !this.reconciled.has(connectionId);
+		this.reconciled.add(connectionId);
 		const { inProgress } = await this.store.getSnapshot(connectionId, 'active');
 		for (const item of inProgress) {
-			if (item.state !== 'paused' && !this.running.has(item.id)) {
-				await this.store.upsertInProgress(connectionId, { ...item, state: 'paused', rightText: 'Paused' });
+			if (item.state !== 'paused' && (first || item.state !== 'waiting') && !this.running.has(item.id)) {
+				await this.store.upsertInProgress(connectionId, { ...item, state: 'paused', rightText: 'Paused', etaSeconds: undefined, pausedAt: item.pausedAt ?? Date.now() });
 			}
 		}
 	}
@@ -111,6 +118,8 @@ export class DownloadRunner {
 		const run: { source: vscode.CancellationTokenSource; stop?: 'pause' | 'cancel' } = { source };
 		this.running.set(taskId, run);
 		let progressPct = 0;
+		let doneRequests = 0;
+		let totalRequests = 0;
 
 		try {
 			const saved = await this.store.getMapping(connectionId, config.mappingId);
@@ -119,13 +128,13 @@ export class DownloadRunner {
 			}
 			// incomplete indicators are left out (the New download dialog says which)
 			const { mapping, leftOut } = completeIndicators(saved);
-			if (!mapping.indicators.length) {
+			if (!mapping.indicators.some(isComplete)) {
 				throw new Error(`None of the indicators of "${saved.name}" is complete yet: finish at least one in the mapping editor.`);
 			}
 			if (leftOut.length) {
 				this.log.info(`Download "${config.mappingName}" leaves out ${leftOut.length} incomplete indicator(s): ${leftOut.join(', ')}`);
 			}
-			const settings = await this.store.readSettings(connectionId);
+			const settings = await this.store.readDownloadSettings(connectionId);
 
 			await this.store.deleteFromHistory(connectionId, taskId);
 			await this.store.upsertInProgress(connectionId, { ...row, progressPct: 0, rightText: 'Processing...', state: 'processing' });
@@ -137,7 +146,11 @@ export class DownloadRunner {
 			// The whole download's progress: every part's chunks
 			const plans = await Promise.all(parts.map(p => vscode.dhis2.planAnalyticsDownload(connectionId, { dataItems: p.dataItems, periods: p.periods, organisationUnits, settings })));
 			const totalChunks = plans.reduce((sum, p) => sum + p.totalChunks, 0);
+			totalRequests = totalChunks;
 			let chunksBefore = 0;
+			// How long the rest takes, from the requests answered in this run (a resumed download's earlier ones not counted)
+			const startedAt = Date.now();
+			let doneAtStart: number | undefined;
 
 			const rows: IDhis2AnalyticsRow[] = [];
 			for (const [i, part] of parts.entries()) {
@@ -159,10 +172,15 @@ export class DownloadRunner {
 						saving = saving.then(() => this.store.appendFile(connectionId, checkpointFile, `${JSON.stringify(line)}\n`));
 					},
 					onProgress: p => {
-						const pct = totalChunks ? Math.round(((chunksBefore + p.completedChunks) / totalChunks) * 100) : 0;
-						if (pct !== progressPct) {
+						const done = chunksBefore + p.completedChunks;
+						doneAtStart ??= done;
+						const pct = totalChunks ? Math.round((done / totalChunks) * 100) : 0;
+						if (pct !== progressPct || done !== doneRequests) {
 							progressPct = pct;
-							void this.store.upsertInProgress(connectionId, { ...row, progressPct: pct, rightText: `${pct}%`, state: 'downloading' });
+							doneRequests = done;
+							const answered = done - doneAtStart;
+							const etaSeconds = answered > 0 ? Math.round(((Date.now() - startedAt) / answered) * (totalChunks - done) / 1000) : undefined;
+							void this.store.upsertInProgress(connectionId, { ...row, progressPct: pct, rightText: `${pct}%`, state: 'downloading', doneRequests: done, totalRequests: totalChunks, etaSeconds });
 						}
 					}
 				}, source.token);
@@ -176,7 +194,7 @@ export class DownloadRunner {
 				await this.store.deleteFile(connectionId, legacyCheckpointFile);
 			}
 
-			await this.store.upsertInProgress(connectionId, { ...row, progressPct: 100, rightText: 'Processing...', state: 'processing' });
+			await this.store.upsertInProgress(connectionId, { ...row, progressPct: 100, rightText: 'Processing...', state: 'processing', doneRequests: totalChunks, totalRequests: totalChunks });
 			const level = parseInt(config.adminLevel.replace('LEVEL-', ''), 10);
 			const orgUnits = (await vscode.dhis2.metadata.getOrganisationUnits(connectionId, level, { only: config.boundaryOrgUnitUid })).rows as unknown as Parameters<Dhis2ExportProcessor['aggregateDataByExportCode']>[2];
 			const data = this.processor.aggregateDataByExportCode(mapping, rows, orgUnits);
@@ -186,19 +204,19 @@ export class DownloadRunner {
 			const text = JSON.stringify(payload);
 			await this.store.writeFile(connectionId, file, text);
 			const size = `${(Buffer.byteLength(text) / 1048576).toFixed(2)} MB`;
-			await this.store.finishToHistory(connectionId, { ...row, status: 'Completed', size, date: new Date().toLocaleString(vscode.env?.language || 'en') });
+			await this.store.finishToHistory(connectionId, { ...row, status: 'Completed', size, rows: rows.length, date: new Date().toLocaleString(vscode.env?.language || 'en') });
 			this.log.info(`Download "${config.mappingName}" (${subtitle}) completed: ${rows.length} values, ${size}`);
 			return { taskId, status: 'completed', tidy, size };
 
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (run.stop === 'pause') {
-				await this.store.upsertInProgress(connectionId, { ...row, progressPct, rightText: 'Paused', state: 'paused' });
+				await this.store.upsertInProgress(connectionId, { ...row, progressPct, rightText: 'Paused', state: 'paused', doneRequests, totalRequests: totalRequests || undefined, pausedAt: Date.now() });
 				this.log.info(`Download "${config.mappingName}" paused at ${progressPct}%`);
 				return { taskId, status: 'paused' };
 			}
 			const cancelled = run.stop === 'cancel';
-			await this.store.finishToHistory(connectionId, { ...row, status: 'Failed', size: '-', date: new Date().toLocaleString(vscode.env?.language || 'en') });
+			await this.store.finishToHistory(connectionId, { ...row, status: 'Failed', size: '-', error: cancelled ? 'Cancelled' : message, date: new Date().toLocaleString(vscode.env?.language || 'en') });
 			if (cancelled) {
 				this.log.info(`Download "${config.mappingName}" cancelled`);
 				return { taskId, status: 'cancelled', error: 'Download cancelled' };
@@ -222,7 +240,7 @@ export class DownloadRunner {
 			throw new Error('Mapping not found');
 		}
 		const { mapping, leftOut } = completeIndicators(saved);
-		const settings = await this.store.readSettings(connectionId);
+		const settings = await this.store.readDownloadSettings(connectionId);
 		const calendar = await vscode.dhis2.metadata.getCalendar(connectionId);
 		const organisationUnits = [config.boundaryOrgUnitUid ?? config.adminLevel];
 		const parts = this.partsOf(mapping, config, calendar).filter(p => p.dataItems.length && p.periods.length);

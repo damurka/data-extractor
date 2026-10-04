@@ -29,8 +29,9 @@ GitHub release whose notes give the `product.json` pin for DataSuite's `builtInE
 
 ## What it keeps
 
-Per connection, in the extension's global storage: mappings, the draft being written, the downloads list, download
-settings, and finished downloads (`store.ts`).
+Per connection, in the extension's global storage: mappings, the downloads (the line of them and the finished ones),
+the settings, and finished downloads' data (`store.ts`). A finished download is written as a file only when it is
+opened: into the folder of the settings (by default Documents/DataSuite/Downloads).
 
 ## Development
 
@@ -39,6 +40,7 @@ npm install
 npm run build       # out/extension.js and out/webview.js (React)
 npm run typecheck
 npm test
+node scripts/harness.mjs   # the webview in a browser, on sample data: out-harness/index.html (served over http)
 ```
 
 The logic in `src/core/` is ported from DataSuite's built-in extractor (`scripts/port-core.py`); `docs/PORTING-SPEC.md`

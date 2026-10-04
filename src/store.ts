@@ -5,11 +5,12 @@
  *    connections/<connectionId>/mappings.json    { [mappingId]: StoredMapping }
  *                               draft.json        IAddMappingDraft
  *                               downloads.json    { inProgress: [...], history: [...] }
- *                               settings.json     Dhis2DownloadSettings
+ *                               settings.json     StoredSettings (how downloads run, the files they make, the calendar)
  *                               files/<id>.json   a finished download; <id>.partial.<part>.ndjson its checkpoint
  *                                                 (one line per finished chunk; the built-in extractor's .json kind
  *                                                 still read)
  *                               migrated.json     when the built-in extractor's work was carried over
+ *    preferences.json                             which connections were used when; whether to open the last one
  *
  *  (The built-in extractor kept the same in one SQLite file per profile; nothing here needs SQL, and JSON files need no
  *  native module.)
@@ -19,6 +20,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { DownloadsFilter, IAddMappingDraft, IDhis2DownloadHistoryRow, IDhis2DownloadInProgressItem, IMappingListItem, MappingMode } from './core/types';
+import type { Preferences, StoredSettings } from './shared/api';
+import { mappingProgress, withAllCountdownIndicators } from './shared/mapping';
 
 export interface StoredMapping {
 	readonly id: string;
@@ -66,7 +69,11 @@ export class ExtractorStore implements vscode.Disposable {
 		const mappings = await this.readJson<Record<string, StoredMapping>>(connectionId, 'mappings.json', {});
 		return Object.values(mappings)
 			.sort((a, b) => b.updatedAt - a.updatedAt)
-			.map(m => ({ id: m.id, name: m.name, description: m.description, mode: m.mode, indicatorsCount: m.draft.indicators?.length ?? 0, lastUpdatedAt: m.updatedAt }));
+			.map(m => {
+				// a Countdown mapping is measured against all of Countdown's indicators, also the ones it has not got to yet
+				const progress = mappingProgress(m.mode === 'countdown' ? withAllCountdownIndicators(m.draft) : m.draft);
+				return { id: m.id, name: m.name, description: m.description, mode: m.mode, indicatorsCount: progress.total, mappedCount: progress.mapped, notAvailableCount: progress.notAvailable, lastUpdatedAt: m.updatedAt };
+			});
 	}
 
 	async getMapping(connectionId: string, mappingId: string): Promise<IAddMappingDraft | undefined> {
@@ -146,7 +153,16 @@ export class ExtractorStore implements vscode.Disposable {
 
 	async upsertInProgress(connectionId: string, item: IDhis2DownloadInProgressItem): Promise<void> {
 		const row = { ...item, progressPct: Math.max(0, Math.min(100, Math.round(item.progressPct || 0))) };
-		await this.update<DownloadsSnapshot>(connectionId, 'downloads.json', { inProgress: [], history: [] }, d => ({ ...d, inProgress: [row, ...d.inProgress.filter(i => i.id !== item.id)] }));
+		// in its place in the line when it is there already, else at the end of it
+		await this.update<DownloadsSnapshot>(connectionId, 'downloads.json', { inProgress: [], history: [] }, d => ({
+			...d, inProgress: d.inProgress.some(i => i.id === item.id) ? d.inProgress.map(i => i.id === item.id ? row : i) : [...d.inProgress, row]
+		}));
+		this._onDidChangeDownloads.fire(connectionId);
+	}
+
+	/** Changes the downloads in progress as one step: their order, or the state of several. */
+	async changeInProgress(connectionId: string, change: (items: IDhis2DownloadInProgressItem[]) => IDhis2DownloadInProgressItem[]): Promise<void> {
+		await this.update<DownloadsSnapshot>(connectionId, 'downloads.json', { inProgress: [], history: [] }, d => ({ ...d, inProgress: change(d.inProgress) }));
 		this._onDidChangeDownloads.fire(connectionId);
 	}
 
@@ -208,12 +224,44 @@ export class ExtractorStore implements vscode.Disposable {
 
 	// ---- settings and the migration mark
 
-	readSettings(connectionId: string): Promise<vscode.Dhis2DownloadSettings | undefined> {
-		return this.readJson<vscode.Dhis2DownloadSettings | undefined>(connectionId, 'settings.json', undefined);
+	/** The connection's settings as saved: only the ones changed from the defaults need be there. */
+	readSettings(connectionId: string): Promise<StoredSettings | undefined> {
+		return this.readJson<StoredSettings | undefined>(connectionId, 'settings.json', undefined);
 	}
 
-	async writeSettings(connectionId: string, settings: vscode.Dhis2DownloadSettings): Promise<void> {
+	async writeSettings(connectionId: string, settings: StoredSettings): Promise<void> {
 		await this.update(connectionId, 'settings.json', undefined, () => settings);
+	}
+
+	/** How DataSuite runs a download's requests (the part of the settings that is DataSuite's). */
+	async readDownloadSettings(connectionId: string): Promise<vscode.Dhis2DownloadSettings | undefined> {
+		const s = await this.readSettings(connectionId);
+		return s && { maxConcurrentChunks: s.maxConcurrentChunks, maxCellsPerChunk: s.maxCellsPerChunk, retryAttempts: s.retryAttempts, retryBaseDelayMs: s.retryBaseDelayMs, requestTimeoutMs: s.requestTimeoutMs };
+	}
+
+	// ---- what is remembered across connections
+
+	async readPreferences(): Promise<Preferences> {
+		let saved: Partial<Preferences> = {};
+		try {
+			saved = JSON.parse(await fs.readFile(path.join(this.root, 'preferences.json'), 'utf8')) as Partial<Preferences>;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				throw error;
+			}
+		}
+		return { openLastUsed: saved.openLastUsed === true, lastUsed: saved.lastUsed && typeof saved.lastUsed === 'object' ? saved.lastUsed : {} };
+	}
+
+	updatePreferences(change: (value: Preferences) => Preferences): Promise<void> {
+		const file = path.join(this.root, 'preferences.json');
+		const next = (this.queues.get(file) ?? Promise.resolve()).catch(() => undefined).then(async () => {
+			const value = change(await this.readPreferences());
+			await fs.mkdir(this.root, { recursive: true });
+			await atomicWrite(file, JSON.stringify(value, null, 1));
+		});
+		this.queues.set(file, next);
+		return next;
 	}
 
 	async isMigrated(connectionId: string): Promise<boolean> {
@@ -272,5 +320,19 @@ export class ExtractorStore implements vscode.Disposable {
 async function atomicWrite(file: string, content: string): Promise<void> {
 	const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
 	await fs.writeFile(tmp, content, 'utf8');
-	await fs.rename(tmp, file);
+	// On Windows a file cannot be renamed over while someone reads it (the screens read as downloads write): wait for
+	// the read to end and try again
+	for (let attempt = 0; ; attempt++) {
+		try {
+			await fs.rename(tmp, file);
+			return;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (attempt >= 20 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
+				await fs.rm(tmp, { force: true });
+				throw error;
+			}
+			await new Promise(resolve => setTimeout(resolve, 5 + attempt * 5));
+		}
+	}
 }

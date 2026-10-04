@@ -39,12 +39,63 @@ export function incompleteReason(indicator: IIndicatorDraft): string | undefined
 	return findIndicatorCategoryMismatch(indicator) ?? undefined;
 }
 
-/** The mapping with only its complete indicators (what a download fetches), and the names of those left out. */
+/**
+ * The mapping with only the indicators a download keeps -- the complete ones (what it fetches) and the ones marked not
+ * available (their columns, empty) -- and the names of those left out.
+ */
 export function completeIndicators(draft: IAddMappingDraft): { readonly mapping: IAddMappingDraft; readonly leftOut: readonly string[] } {
+	const kept = (i: IIndicatorDraft) => isComplete(i) || (isNotAvailable(i) && !!i.exportCode?.trim());
 	return {
-		mapping: { ...draft, indicators: draft.indicators.filter(isComplete) },
-		leftOut: draft.indicators.filter(i => !isComplete(i)).map(i => i.internalName?.trim() || i.exportCode?.trim() || 'Untitled indicator')
+		mapping: { ...draft, indicators: draft.indicators.filter(kept) },
+		leftOut: draft.indicators.filter(i => !kept(i)).map(i => i.internalName?.trim() || i.exportCode?.trim() || 'Untitled indicator')
 	};
+}
+
+/** Whether an indicator is marked as not available on the server (and has no sources: giving it one maps it instead). */
+export function isNotAvailable(indicator: IIndicatorDraft): boolean {
+	return !!indicator.notAvailable && !indicator.sources?.length;
+}
+
+/** Whether nothing is left to do for an indicator: it is complete, or marked not available. */
+export function isDone(indicator: IIndicatorDraft): boolean {
+	return isComplete(indicator) || isNotAvailable(indicator);
+}
+
+/** How far a mapping is: its indicators, the complete ones, the ones marked not available, and the rest. */
+export function mappingProgress(draft: Pick<IAddMappingDraft, 'indicators'>): { readonly total: number; readonly mapped: number; readonly notAvailable: number; readonly missing: number } {
+	const indicators = draft.indicators ?? [];
+	const mapped = indicators.filter(isComplete).length;
+	const notAvailable = indicators.filter(i => !isComplete(i) && isNotAvailable(i)).length;
+	return { total: indicators.length, mapped, notAvailable, missing: indicators.length - mapped - notAvailable };
+}
+
+/** The sheets of the Countdown workbook, with the Countdown categories on each and how often each has a value. */
+export const COUNTDOWN_PARTS: readonly { readonly name: string; readonly cadence: string; readonly categories: readonly string[] }[] = [
+	{ name: 'Population', cadence: 'yearly', categories: ['Population_data'] },
+	{ name: 'Reporting completeness', cadence: 'monthly', categories: ['Reporting_completeness'] },
+	{ name: 'Services', cadence: 'monthly', categories: ['Service_data_1', 'Service_data_2', 'Service_data_3'] },
+	{ name: 'Admin', cadence: 'one value per unit', categories: ['Admin_data'] }
+];
+
+/**
+ * A Countdown mapping with every Countdown indicator, in Countdown's order: the ones it has, and an empty one (not
+ * mapped yet) for each it lacks. An indicator whose code is not Countdown's is kept at the end.
+ */
+export function withAllCountdownIndicators(draft: IAddMappingDraft): IAddMappingDraft {
+	const byCode = new Map(draft.indicators.map(i => [i.exportCode, i]));
+	const known = new Set(COUNTDOWN_INDICATORS.map(c => c.id));
+	return {
+		...draft,
+		indicators: [
+			...COUNTDOWN_INDICATORS.map(c => byCode.get(c.id) ?? { id: randomId(), internalName: c.title, exportCode: c.id, kind: 'countdown' as const, sources: [] }),
+			...draft.indicators.filter(i => !known.has(i.exportCode))
+		]
+	};
+}
+
+/** A column's code from an indicator's name: `ANC 1st visit` -> `anc_1st_visit`. */
+export function exportCodeFor(name: string): string {
+	return name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 /** What a source's chosen category option combos say, in a word or three. */

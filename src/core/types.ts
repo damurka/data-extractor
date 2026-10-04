@@ -35,6 +35,18 @@ export interface IIndicatorDraft {
 	expanded?: boolean;
 
 	sources: IIndicatorSourceDraft[];
+
+	/** The server has no data for this indicator: it counts as done, and a download keeps its column, empty. */
+	notAvailable?: INotAvailable;
+	/** A custom mapping's sheet (of the Excel workbook) this indicator's column is on. */
+	sheet?: string;
+}
+
+export type NotAvailableReason = 'notCollected' | 'noMatch' | 'other';
+
+export interface INotAvailable {
+	reason: NotAvailableReason;
+	note?: string;
 }
 
 export interface IIndicatorCocDraft {
@@ -49,6 +61,8 @@ export interface IAddMappingDraft {
 	description?: string;
 	mode: MappingMode;
 	indicators: IIndicatorDraft[];
+	/** A custom mapping's sheets, in the workbook's order (each indicator names its own: IIndicatorDraft.sheet). */
+	sheets?: string[];
 }
 
 export interface IMappingListItem {
@@ -57,10 +71,15 @@ export interface IMappingListItem {
 	description?: string | null;
 	mode: MappingMode;
 	indicatorsCount: number;
+	/** Indicators with everything a download needs. */
+	mappedCount?: number;
+	/** Indicators marked as not available on this server. */
+	notAvailableCount?: number;
 	lastUpdatedAt: number;    // epoch ms
 }
 export type DownloadsFilter = 'all' | 'active' | 'completed' | 'failed';
-export type DownloadState = 'downloading' | 'processing' | 'paused';
+/** `waiting`: in line behind the downloads running now (settings: how many run at the same time). */
+export type DownloadState = 'downloading' | 'processing' | 'paused' | 'waiting';
 export type DownloadStatus = 'Completed' | 'Failed';
 
 export interface IDhis2DownloadInProgressItem {
@@ -79,6 +98,13 @@ export interface IDhis2DownloadInProgressItem {
 	adminLevel: string;
 	/** The sub-region org unit this download was scoped to, if any -- preserved so a restart keeps the same scoping. */
 	boundaryOrgUnitUid?: string;
+	/** Requests answered so far, and all of them. */
+	doneRequests?: number;
+	totalRequests?: number;
+	/** Seconds the rest is expected to take, from how the requests answered so far went. */
+	etaSeconds?: number;
+	/** When it was paused (milliseconds since 1970). */
+	pausedAt?: number;
 }
 
 export interface IDhis2DownloadHistoryRow {
@@ -98,6 +124,12 @@ export interface IDhis2DownloadHistoryRow {
 
 	date?: string;
 	size?: string;
+	/** Values downloaded. */
+	rows?: number;
+	/** When it ended (milliseconds since 1970). */
+	endedAt?: number;
+	/** Why it failed. */
+	error?: string;
 }
 
 export interface IDhis2DownloadsSnapshot {

@@ -83,3 +83,10 @@ export function fromNow(time: number | undefined): string {
 	}
 	return '-';
 }
+
+/** Whether periods are written in the Ethiopian calendar: on a server whose own is Ethiopian, unless the settings say Gregorian. */
+export function useEthiopicLabels(connectionId: string): boolean {
+	const calendar = useLoad(() => host.calendar(connectionId), [connectionId]);
+	const settings = useLoad(() => host.settings(connectionId), [connectionId]);
+	return /^ethiop/i.test(calendar.value ?? '') && settings.value?.calendar !== 'gregorian';
+}

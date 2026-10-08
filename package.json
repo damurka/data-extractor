@@ -4,7 +4,7 @@
   "description": "Map indicators and download routine data from DHIS2 to Excel, for the Countdown 2030 analyses or your own.",
   "publisher": "datasuite",
   "icon": "media/logo.png",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "repository": {
     "type": "git",

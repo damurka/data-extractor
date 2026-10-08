@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1
+
+- The Countdown workbook opens in the Countdown apps whatever the mapping downloads. It has every column the apps
+  expect (each Countdown indicator of the services, the population, the reporting rates and the health system, and
+  the population growth rate), in the template's order, empty where the mapping has no indicator for it: the apps
+  check for the columns by name, and a mapping of some of the indicators gave a workbook they refused.
+- The Countdown workbook leaves its second row empty, as the Countdown template does (its row of instructions). The
+  apps skip the two rows under the column codes, so each sheet's first row of data (the first district's first
+  month) was skipped as if it were the names. The three rows of headings look as the template's do: the codes
+  hidden, red on yellow; the second row pale yellow; the names white on teal; the headings and the unit and period
+  columns kept in view. A custom mapping's workbook is unchanged: codes, names, data.
+
 ## 0.2.0
 
 - A new look and layout: an overview (what needs attention, the latest downloads, the server; the three steps to a

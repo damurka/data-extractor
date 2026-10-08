@@ -4,12 +4,12 @@
  *  analysis app.
  *--------------------------------------------------------------------------------------------*/
 
-import { Workbook } from 'exceljs';
+import { Borders, Workbook, Worksheet } from 'exceljs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Dhis2ExportProcessor, Dhis2PeriodCalendar, IDhis2Export, IDhis2ExportItem } from './core/exportProcessor';
-import { getCountdownIndicatorCategory } from './core/countdown';
+import { COUNTDOWN_INDICATORS, getCountdownIndicatorCategory } from './core/countdown';
 import { generateDhis2Periods, isEthiopianCalendar } from './core/periods';
 import { IAddMappingDraft, IDhis2DownloadHistoryRow, IDhis2OrgUnitWithLevels } from './core/types';
 import { DownloadPayload } from './download';
@@ -25,6 +25,9 @@ export interface WorkbookOptions {
 	readonly codes?: boolean;
 }
 
+/** A column's name as the Countdown apps compare it: in lower case, without spaces. */
+const columnKey = (code: string) => String(code).replace(/\s+/g, '').toLowerCase();
+
 /** A sheet's name as Excel takes it: at most 31 characters, none of `[]:*?/\`, and not one already used. */
 function sheetName(name: string, used: Set<string>): string {
 	const base = name.replace(/[[\]:*?/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'Sheet';
@@ -37,7 +40,53 @@ function sheetName(name: string, used: Set<string>): string {
 	return candidate;
 }
 
-async function writeWorkbook(sheets: readonly { readonly name: string; readonly item: IDhis2ExportItem }[]): Promise<Uint8Array> {
+/** How many of a Countdown sheet's first columns say what a row is of (the unit, the year, the month). */
+const keyColumns = (codes: readonly string[]) => {
+	const keys = ['district', 'district_name', 'year', 'month', 'first_admin_level', 'country'];
+	let n = 0;
+	while (n < codes.length && keys.includes(columnKey(codes[n]))) {
+		n++;
+	}
+	return n;
+};
+
+/**
+ * The Countdown template's look for a sheet's three rows of headings (as in the workbooks countries fill in): the
+ * codes in red on yellow, hidden; the row of instructions pale yellow, left empty; the names in white on teal, the
+ * unit and the period darker than the indicators; the headings and the unit and period columns kept in view.
+ */
+function formatCountdownSheet(sheet: Worksheet, codes: readonly string[]): void {
+	const columns = codes.length;
+	const keys = keyColumns(codes);
+	const fill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } });
+	const thin = { style: 'thin' as const };
+	const border: Partial<Borders> = { left: thin, right: thin, top: thin, bottom: { style: 'double' } };
+
+	const codeRow = sheet.getRow(1);
+	codeRow.height = 28;
+	codeRow.hidden = true;
+	const instructions = sheet.getRow(2);
+	instructions.height = 60;
+	const names = sheet.getRow(3);
+	names.height = 60;
+	for (let n = 1; n <= columns; n++) {
+		const code = codeRow.getCell(n);
+		code.font = { bold: true, color: { argb: 'FFC00000' } };
+		code.fill = fill('FFFFFF00');
+		code.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+		instructions.getCell(n).fill = fill('FFFFFF99');
+		const name = names.getCell(n);
+		name.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+		name.fill = fill(n <= keys ? 'FF006666' : 'FF009999');
+		name.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+		name.border = border;
+		const key = columnKey(codes[n - 1]);
+		sheet.getColumn(n).width = key === 'year' ? 9 : key === 'month' ? 11 : 18;
+	}
+	sheet.views = [{ state: 'frozen', xSplit: keys, ySplit: 3 }];
+}
+
+async function writeWorkbook(sheets: readonly { readonly name: string; readonly item: IDhis2ExportItem }[], countdown = false): Promise<Uint8Array> {
 	const workbook = new Workbook();
 	const used = new Set<string>();
 	for (const { name, item } of sheets) {
@@ -46,7 +95,13 @@ async function writeWorkbook(sheets: readonly { readonly name: string; readonly 
 		}
 		const sheet = workbook.addWorksheet(sheetName(name, used));
 		sheet.addRow(item.headerRow1_HiddenCodes);
+		if (countdown) {
+			sheet.addRow([]);
+		}
 		sheet.addRow(item.headerRow2_VisibleNames);
+		if (countdown) {
+			formatCountdownSheet(sheet, item.headerRow1_HiddenCodes);
+		}
 		for (const row of item.dataRows) {
 			sheet.addRow(row);
 		}
@@ -54,14 +109,87 @@ async function writeWorkbook(sheets: readonly { readonly name: string; readonly 
 	return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
-/** The Countdown workbook: its sheets in their order, each a row of export codes, a row of names, then the data. */
-export function toWorkbook(structures: IDhis2Export): Promise<Uint8Array> {
+/**
+ * A workbook of the Countdown sheets in their order, each a row of export codes, a row of names, then the data.
+ * `countdown`: the workbook the Countdown apps read. The Countdown template has a row of instructions between the
+ * codes and the names, and the apps skip the two rows under the codes whatever they hold: without a second row here
+ * (left empty), each sheet's first row of data was skipped as if it were the names.
+ */
+export function toWorkbook(structures: IDhis2Export, countdown = false): Promise<Uint8Array> {
 	return writeWorkbook([
 		{ name: 'Service_data', item: structures.service },
 		{ name: 'Population_data', item: structures.population },
 		{ name: 'Reporting_completeness', item: structures.completeness },
 		{ name: 'Admin_data', item: structures.admin }
-	]);
+	], countdown);
+}
+
+interface IExpectedColumn { readonly code: string; readonly name: string }
+
+const expectedOf = (category: string): IExpectedColumn[] => COUNTDOWN_INDICATORS.filter(i => i.category.startsWith(category)).map(i => ({ code: i.id, name: i.title }));
+
+/** The columns of the Countdown template, sheet by sheet, in its order. */
+export const COUNTDOWN_EXPECTED_COLUMNS: { readonly service: IExpectedColumn[]; readonly population: IExpectedColumn[]; readonly completeness: IExpectedColumn[]; readonly admin: IExpectedColumn[] } = {
+	service: expectedOf('Service_data'),
+	// the growth rate is the template's and not a Countdown indicator to map: the apps work it out from the total
+	// population over the years where the column is empty, and refuse a workbook without the column
+	population: [{ code: 'Pop_growth_rate', name: 'Annual population growth rate' }, ...expectedOf('Population_data')],
+	completeness: expectedOf('Reporting_completeness').flatMap(i => [
+		{ code: `${i.code}_reporting_expected`, name: 'Expected number (#)' },
+		{ code: `${i.code}_reporting_received`, name: 'Received number (#)' },
+		{ code: `${i.code}_reporting_rate`, name: 'Reporting completeness rate (%)' }
+	]),
+	admin: expectedOf('Admin_data')
+};
+
+/**
+ * A sheet with every expected column, in the template's order: the ones it has with their values, the others empty.
+ * What the mapping has beyond the template stays, after them. The first `keys` columns (the unit, the period) are
+ * left where they are.
+ */
+function withColumns(item: IDhis2ExportItem, keys: number, expected: readonly IExpectedColumn[]): IDhis2ExportItem {
+	const at = new Map<string, number>();
+	item.headerRow1_HiddenCodes.forEach((code, n) => {
+		if (n >= keys && !at.has(columnKey(code))) {
+			at.set(columnKey(code), n);
+		}
+	});
+	const taken = new Set<number>();
+	const columns: { code: string; name: string; from: number }[] = [];
+	for (const column of expected) {
+		const from = at.get(columnKey(column.code));
+		if (from === undefined) {
+			columns.push({ ...column, from: -1 });
+		} else {
+			taken.add(from);
+			columns.push({ code: item.headerRow1_HiddenCodes[from], name: item.headerRow2_VisibleNames[from], from });
+		}
+	}
+	item.headerRow1_HiddenCodes.forEach((code, n) => {
+		if (n >= keys && !taken.has(n)) {
+			columns.push({ code, name: item.headerRow2_VisibleNames[n], from: n });
+		}
+	});
+	return {
+		headerRow1_HiddenCodes: [...item.headerRow1_HiddenCodes.slice(0, keys), ...columns.map(c => c.code)],
+		headerRow2_VisibleNames: [...item.headerRow2_VisibleNames.slice(0, keys), ...columns.map(c => c.name)],
+		dataRows: item.dataRows.map(row => [...row.slice(0, keys), ...columns.map(c => c.from < 0 ? '' : row[c.from])])
+	};
+}
+
+/**
+ * The Countdown workbook with every column the Countdown apps expect, whether the mapping downloads it or not: a
+ * column with no indicator behind it is there and empty. The apps check for the columns by name and refuse a
+ * workbook without one (an analysis of vaccines needs none of the antenatal columns filled, but all of them present),
+ * so a mapping of some of the indicators gave a workbook that could not be opened.
+ */
+export function withExpectedColumns(structures: IDhis2Export): IDhis2Export {
+	return {
+		service: withColumns(structures.service, 3, COUNTDOWN_EXPECTED_COLUMNS.service),
+		population: withColumns(structures.population, 2, COUNTDOWN_EXPECTED_COLUMNS.population),
+		completeness: withColumns(structures.completeness, 3, COUNTDOWN_EXPECTED_COLUMNS.completeness),
+		admin: withColumns(structures.admin, 3, COUNTDOWN_EXPECTED_COLUMNS.admin)
+	};
 }
 
 /** Whether a data sheet has a column beside the organisation unit and the period. */
@@ -156,7 +284,7 @@ export async function downloadContent(store: ExtractorStore, connectionId: strin
 
 	// The Countdown workbook is what the Countdown apps read: its sheets and columns stay as they are
 	if (mapping.mode === 'countdown') {
-		return toWorkbook(withAdminColumns(structures(mapping)));
+		return toWorkbook(withExpectedColumns(withAdminColumns(structures(mapping))), true);
 	}
 	const names = customSheetNames(mapping);
 	if (!names.length) {

@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 import { IDhis2ExportItem } from '../core/exportProcessor';
 import { IAddMappingDraft, IIndicatorDraft } from '../core/types';
 import { DownloadConfig, DownloadRunner } from '../download';
-import { customSheetNames, fileNameFor, withAdminColumns, withUnitColumns } from '../exporter';
+import { COUNTDOWN_EXPECTED_COLUMNS, customSheetNames, fileNameFor, toWorkbook, withAdminColumns, withExpectedColumns, withUnitColumns } from '../exporter';
 import { mappingFromFile, reviewImport } from '../host';
 import { DownloadQueue } from '../queue';
 import { metadataRefreshDue, normalizeSettings } from '../settings';
@@ -200,4 +200,82 @@ test("the Countdown workbook: health-system indicators are on the Admin sheet, e
 	assert.deepEqual(moved.service.dataRows[1], ['Westlands', '2025', 'February', 44]);
 	assert.deepEqual(moved.admin.headerRow1_HiddenCodes, ['district_name', 'first_admin_level', 'country', 'Number_hospitals', 'Number_hospital_beds']);
 	assert.deepEqual(moved.admin.dataRows, [['Westlands', 'Nairobi', 'Kenya', 4, 120], ['Langata', 'Nairobi', 'Kenya', '', '']]);
+});
+
+test('the Countdown workbook has every expected column, empty where the mapping has none', () => {
+	const sheet = (codes: string[], rows: (string | number | null)[][]): IDhis2ExportItem => ({ headerRow1_HiddenCodes: codes, headerRow2_VisibleNames: codes.map(c => c + ' name'), dataRows: rows });
+	const all = withExpectedColumns({
+		// a mapping of two services (one beyond the template), a population in the template's own spelling, one reporting rate
+		service: sheet(['district', 'year', 'month', 'my_extra', 'ANC1'], [['A', '2024', 'January', 7, 10]]),
+		population: sheet(['district', 'year', 'Population_ under_5years'], [['A', '2024', 500]]),
+		completeness: sheet(['district', 'year', 'month', 'ANC_reporting_expected', 'ANC_reporting_received', 'ANC_reporting_rate'], [['A', '2024', 'January', 10, 9, 90]]),
+		admin: sheet(['district_name', 'first_admin_level', 'country'], [['A', 'R', 'Kenya']])
+	});
+
+	// every column of the template, in its order, then what is beyond it
+	assert.deepEqual(all.service.headerRow1_HiddenCodes, ['district', 'year', 'month', ...COUNTDOWN_EXPECTED_COLUMNS.service.map(c => c.code), 'my_extra']);
+	const anc1 = all.service.headerRow1_HiddenCodes.indexOf('ANC1');
+	const ipt3 = all.service.headerRow1_HiddenCodes.indexOf('IPT3');
+	assert.equal(all.service.dataRows[0][anc1], 10);
+	assert.equal(all.service.dataRows[0][ipt3], '', 'a column the mapping does not download is there, empty');
+	assert.equal(all.service.dataRows[0][all.service.dataRows[0].length - 1], 7);
+	assert.equal(all.service.headerRow2_VisibleNames[anc1], 'ANC1 name', 'a column the mapping has keeps its name');
+	assert.ok(all.service.headerRow2_VisibleNames[ipt3].length > 0);
+	assert.ok(all.service.dataRows.every(row => row.length === all.service.headerRow1_HiddenCodes.length));
+
+	assert.deepEqual(all.population.headerRow1_HiddenCodes, ['district', 'year', 'Pop_growth_rate', 'Total_Population', 'Population_ under_5years', 'Population_under_1year', 'Live_births', 'Total_births', 'Women_15_49_years']);
+	assert.deepEqual(all.population.dataRows[0], ['A', '2024', '', '', 500, '', '', '', '']);
+
+	assert.equal(all.completeness.headerRow1_HiddenCodes.length, 3 + 5 * 3);
+	assert.ok(all.completeness.headerRow1_HiddenCodes.includes('Vacc_reporting_rate'));
+	assert.deepEqual(all.completeness.dataRows[0].slice(0, 6), ['A', '2024', 'January', 10, 9, 90]);
+
+	assert.deepEqual(all.admin.headerRow1_HiddenCodes.slice(0, 4), ['district_name', 'first_admin_level', 'country', 'Number_hospitals']);
+	assert.equal(all.admin.dataRows[0].length, 3 + COUNTDOWN_EXPECTED_COLUMNS.admin.length);
+
+	// a workbook that has them all is left as it is
+	assert.deepEqual(withExpectedColumns(all), all);
+});
+
+test('the Countdown workbook leaves its second row empty, as the template the apps read does', async () => {
+	const { Workbook } = await import('exceljs');
+	const sheet = (codes: string[], rows: (string | number | null)[][]): IDhis2ExportItem => ({ headerRow1_HiddenCodes: codes, headerRow2_VisibleNames: codes.map(c => c + ' name'), dataRows: rows });
+	const structures = {
+		service: sheet(['district', 'year', 'month', 'ANC1'], [['A', '2024', 'January', 10], ['A', '2024', 'February', 11]]),
+		population: sheet(['district', 'year', 'Total_Population'], [['A', '2024', 1000]]),
+		completeness: sheet(['district', 'year', 'month', 'ANC_reporting_rate'], [['A', '2024', 'January', 90]]),
+		admin: sheet(['district_name', 'first_admin_level', 'country'], [['A', 'R', 'Kenya']])
+	};
+	const read = async (bytes: Uint8Array) => { const book = new Workbook(); await book.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer); return book; };
+	const cells = (book: InstanceType<typeof Workbook>, name: string, row: number) => ((book.getWorksheet(name)!.getRow(row).values as unknown[]) ?? []).slice(1);
+
+	const countdown = await read(await toWorkbook(structures, true));
+	for (const name of ['Service_data', 'Population_data', 'Reporting_completeness', 'Admin_data']) {
+		assert.deepEqual(cells(countdown, name, 2), [], name + ': the second row is empty');
+	}
+	assert.deepEqual(cells(countdown, 'Service_data', 1), ['district', 'year', 'month', 'ANC1']);
+	assert.deepEqual(cells(countdown, 'Service_data', 3), ['district name', 'year name', 'month name', 'ANC1 name']);
+	// the apps skip rows 2 and 3: the first row of data is the fourth, and is not lost
+	assert.deepEqual(cells(countdown, 'Service_data', 4), ['A', '2024', 'January', 10]);
+	assert.equal(countdown.getWorksheet('Service_data')!.rowCount, 5);
+
+	// the template's look: the codes hidden, red on yellow; the second row pale yellow; the names white on teal, the
+	// unit and the period darker; the headings and the unit and period columns frozen
+	const service = countdown.getWorksheet('Service_data')!;
+	assert.equal(service.getRow(1).hidden, true);
+	assert.equal((service.getCell('A1').fill as { fgColor?: { argb?: string } }).fgColor?.argb, 'FFFFFF00');
+	assert.equal(service.getCell('A1').font.color?.argb, 'FFC00000');
+	assert.equal((service.getCell('D2').fill as { fgColor?: { argb?: string } }).fgColor?.argb, 'FFFFFF99');
+	assert.equal((service.getCell('A3').fill as { fgColor?: { argb?: string } }).fgColor?.argb, 'FF006666');
+	assert.equal((service.getCell('D3').fill as { fgColor?: { argb?: string } }).fgColor?.argb, 'FF009999');
+	assert.equal(service.getCell('D3').font.bold, true);
+	assert.deepEqual(service.views.map(v => [v.state, (v as { xSplit?: number }).xSplit, (v as { ySplit?: number }).ySplit]), [['frozen', 3, 3]]);
+	assert.deepEqual(countdown.getWorksheet('Population_data')!.views.map(v => [(v as { xSplit?: number }).xSplit, (v as { ySplit?: number }).ySplit]), [[2, 3]]);
+	assert.equal(service.getCell('A4').font?.bold ?? false, false, 'the data is plain');
+
+	// a custom mapping's workbook is not the apps': codes, names, data
+	const custom = await read(await toWorkbook(structures));
+	assert.deepEqual(cells(custom, 'Service_data', 2), ['district name', 'year name', 'month name', 'ANC1 name']);
+	assert.deepEqual(cells(custom, 'Service_data', 3), ['A', '2024', 'January', 10]);
+	assert.equal(custom.getWorksheet('Service_data')!.getRow(1).hidden ?? false, false);
 });

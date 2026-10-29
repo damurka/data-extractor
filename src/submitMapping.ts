@@ -9,9 +9,8 @@
 
 import * as vscode from 'vscode';
 import { mappingProblems, toDataSuiteMapping } from './core/dataSuiteMapping';
+import { COUNTDOWN_EXTENSION } from './exporter';
 import { ExtractorStore } from './store';
-
-const COUNTDOWN_EXTENSION_ID = 'countdown.countdown-analytics';
 
 interface ICountdownSubmitApi {
 	submitCountryMapping(mappingJson: string, options?: { note?: string }): Promise<number | undefined>;
@@ -62,7 +61,7 @@ async function submitMapping(store: ExtractorStore): Promise<void> {
 	}
 	const note = await vscode.window.showInputBox({ title: 'A note for the reviewers (optional)', prompt: 'What this version is, or what changed' });
 
-	const countdown = vscode.extensions.getExtension<ICountdownSubmitApi>(COUNTDOWN_EXTENSION_ID);
+	const countdown = vscode.extensions.getExtension<ICountdownSubmitApi>(COUNTDOWN_EXTENSION);
 	if (!countdown) {
 		throw new Error('Submitting needs the Countdown Analytics extension.');
 	}

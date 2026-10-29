@@ -17,6 +17,7 @@ import { metadataRefreshDue, readSettings } from './settings';
 import { ExtractorEvents } from './shared/api';
 import { RpcEvent } from './shared/rpc';
 import { ExtractorStore } from './store';
+import { registerSubmitData } from './submitData';
 import { registerSubmitMapping } from './submitMapping';
 import { registerChatTools } from './tools';
 
@@ -71,7 +72,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 		registerChatTools({ store, runner, log, storageUri: context.globalStorageUri }),
 		// a Countdown mapping to DataSuite, as the country's (Countdown Analytics signs in and sends it)
-		registerSubmitMapping(store)
+		registerSubmitMapping(store),
+		...registerSubmitData(store)
 	);
 }
 

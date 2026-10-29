@@ -74,3 +74,45 @@ export function toDataSuiteMapping(draft: IAddMappingDraft, serverUrl: string, d
 			}),
 	};
 }
+
+/** A mapping version as DataSuite returns it (`IMappingVersion` of Countdown Analytics), as far as it is compared. */
+export interface IDataSuiteMappingVersion {
+	readonly number: number;
+	readonly sha256: string;
+	readonly dhis2Url: string;
+	readonly districtLevel: number;
+	readonly indicators: IDataSuiteMapping['indicators'] | null;
+}
+
+function sourcesKey(indicator: IDataSuiteMapping['indicators'][number]): string {
+	if (indicator.notAvailable) {
+		return 'n/a';
+	}
+	return indicator.sources.map(s => `${s.uid}:${[...s.categoryOptionCombos].sort().join('+')}`).sort().join(',');
+}
+
+/** How `local` (the mapping a download was made with) differs from DataSuite's `version` -- the server, the district
+ * level, each indicator's sources (in any order) -- in words; none when it is the same. */
+export function mappingDifferences(local: IDataSuiteMapping, version: IDataSuiteMappingVersion): string[] {
+	const differences: string[] = [];
+	const url = (u: string) => u.replace(/\/+$/, '').toLowerCase();
+	if (url(local.dhis2Url) !== url(version.dhis2Url)) {
+		differences.push(`it is for ${version.dhis2Url}, not ${local.dhis2Url}`);
+	}
+	if (local.districtLevel !== version.districtLevel) {
+		differences.push(`its districts are level ${version.districtLevel}, not ${local.districtLevel}`);
+	}
+	const theirs = new Map((version.indicators ?? []).map(i => [i.code.toLowerCase(), sourcesKey(i)]));
+	const ours = new Map(local.indicators.map(i => [i.code.toLowerCase(), sourcesKey(i)]));
+	const changed = [...new Set([...theirs.keys(), ...ours.keys()])].filter(code => theirs.get(code) !== ours.get(code)).sort();
+	if (changed.length > 0) {
+		differences.push(`${changed.length} indicator(s) are mapped differently (${changed.slice(0, 5).join(', ')}${changed.length > 5 ? '…' : ''})`);
+	}
+	return differences;
+}
+
+/** A DHIS2 period ("202401") from a download's date ("2024-01-31"); the date as it is when it isn't one. */
+export function monthPeriod(date: string): string {
+	const m = /^(\d{4})-(\d{2})/.exec(date);
+	return m ? `${m[1]}${m[2]}` : date;
+}

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Submit Mapping to DataSuite** (Command Palette): one of the connection's Countdown mappings goes to DataSuite as a
+  new version of your country's DHIS2 mapping, with the DHIS2 level of the districts you choose from the server's
+  levels and a note for the reviewers. The country reviews it, then it's reviewed globally; the approved one is the
+  mapping every cycle's DHIS2 download uses. Only a complete Countdown mapping goes (every indicator mapped or marked
+  not available), and only a country's uploaders can submit. Needs Countdown Analytics with Submit to DataSuite, which
+  signs in and sends it: this extension never holds a DataSuite token.
+
 ## 0.2.1
 
 - The Countdown workbook opens in the Countdown apps whatever the mapping downloads. It has every column the apps

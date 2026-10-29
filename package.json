@@ -29,6 +29,11 @@
         "command": "dataExtractor.open",
         "title": "Open Data Extractor",
         "category": "DHIS2"
+      },
+      {
+        "command": "dataExtractor.submitMapping",
+        "title": "Submit Mapping to DataSuite...",
+        "category": "Data Extractor"
       }
     ],
     "menus": {

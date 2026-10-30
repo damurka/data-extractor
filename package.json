@@ -29,6 +29,21 @@
         "command": "dataExtractor.open",
         "title": "Open Data Extractor",
         "category": "DHIS2"
+      },
+      {
+        "command": "dataExtractor.submitMapping",
+        "title": "Submit Mapping to DataSuite...",
+        "category": "Data Extractor"
+      },
+      {
+        "command": "dataExtractor.submitDownload",
+        "title": "Submit Download to DataSuite...",
+        "category": "Data Extractor"
+      },
+      {
+        "command": "dataExtractor.missingDataTemplate",
+        "title": "Make Missing-Data Template...",
+        "category": "Data Extractor"
       }
     ],
     "menus": {

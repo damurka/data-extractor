@@ -354,6 +354,19 @@ export async function saveDownload(store: ExtractorStore, connectionId: string, 
 	return target;
 }
 
+/** The folder a server's Countdown workbooks are written to: `dataExtractor.countdownDataFolder`, by default
+ * Documents/Countdown data/<server>. */
+export function countdownDataFolder(serverUrl: string): string {
+	const configured = vscode.workspace.getConfiguration('dataExtractor').get<string>('countdownDataFolder');
+	let host = 'dhis2';
+	try {
+		host = new URL(serverUrl).host.replace(/[^\w.-]+/g, '_');
+	} catch {
+		// not a URL: the default name
+	}
+	return configured?.trim() || path.join(os.homedir(), 'Documents', 'Countdown data', host);
+}
+
 /** The Countdown apps (Countdown Analytics' Shiny apps) a Countdown download opens in. */
 export type CountdownApp = 'rmncah' | 'vaxx';
 export const COUNTDOWN_EXTENSION = 'datasuite.countdown-analytics';
@@ -371,14 +384,7 @@ export async function openDownloadInApp(store: ExtractorStore, connectionId: str
 		}
 		return false;
 	}
-	const configured = vscode.workspace.getConfiguration('dataExtractor').get<string>('countdownDataFolder');
-	let host = 'dhis2';
-	try {
-		host = new URL(serverUrl).host.replace(/[^\w.-]+/g, '_');
-	} catch {
-		// not a URL: the default name
-	}
-	const folder = configured?.trim() || path.join(os.homedir(), 'Documents', 'Countdown data', host);
+	const folder = countdownDataFolder(serverUrl);
 	const target = path.join(folder, exportFileName(item, 'EXCEL'));
 	await vscode.workspace.fs.createDirectory(vscode.Uri.file(folder));
 	await vscode.workspace.fs.writeFile(vscode.Uri.file(target), await downloadContent(store, connectionId, item, 'EXCEL', labelCalendar));
